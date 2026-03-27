@@ -3,6 +3,7 @@ import { Grid } from '../game/Grid';
 import { Tile } from '../game/Tile';
 import { ScoreManager } from '../game/ScoreManager';
 import { Storage, GameMode } from '../utils/storage';
+import { getDailySeed, seededRandom } from '../utils/daily';
 import {
   GRID_COLS,
   GRID_ROWS,
@@ -30,6 +31,7 @@ export class GameScene extends Phaser.Scene {
   private gridY!: number;
   private colorCount: number = INITIAL_COLOR_COUNT;
   private nextColorIndex: number = 0;
+  private rng: (() => number) | null = null;
 
   private scoreText!: Phaser.GameObjects.Text;
   private nextPreview!: Phaser.GameObjects.Rectangle;
@@ -47,6 +49,10 @@ export class GameScene extends Phaser.Scene {
     this.scoreManager = new ScoreManager();
     this.storage = new Storage();
     this.tiles.clear();
+
+    if (this.mode === 'daily') {
+      this.rng = seededRandom(getDailySeed());
+    }
 
     const { width, height } = this.cameras.main;
 
@@ -120,7 +126,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private generateNextTile(): void {
-    this.nextColorIndex = Phaser.Math.Between(0, this.colorCount - 1);
+    if (this.rng) {
+      this.nextColorIndex = Math.floor(this.rng() * this.colorCount);
+    } else {
+      this.nextColorIndex = Phaser.Math.Between(0, this.colorCount - 1);
+    }
     this.nextPreview.setFillStyle(COLORS[this.nextColorIndex]);
   }
 
