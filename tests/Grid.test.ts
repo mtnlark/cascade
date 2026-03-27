@@ -266,4 +266,48 @@ describe('Grid', () => {
       expect(result.chains).toHaveLength(0);
     });
   });
+
+  describe('isGameOver', () => {
+    it('returns false when grid has space', () => {
+      const grid = new Grid(6, 12);
+      grid.dropTile(0, 0);
+
+      expect(grid.isGameOver()).toBe(false);
+    });
+
+    it('returns true when all columns are full', () => {
+      const grid = new Grid(2, 2); // tiny grid
+      grid.dropTile(0, 0);
+      grid.dropTile(0, 1);
+      grid.dropTile(1, 0);
+      grid.dropTile(1, 1);
+
+      expect(grid.isGameOver()).toBe(true);
+    });
+
+    it('returns false when at least one column has space', () => {
+      const grid = new Grid(2, 2);
+      grid.dropTile(0, 0);
+      grid.dropTile(0, 1);
+      grid.dropTile(1, 0);
+      // column 1 has one space
+
+      expect(grid.isGameOver()).toBe(false);
+    });
+  });
+
+  describe('canDropInColumn', () => {
+    it('returns true for empty column', () => {
+      const grid = new Grid(6, 12);
+      expect(grid.canDropInColumn(0)).toBe(true);
+    });
+
+    it('returns false for full column', () => {
+      const grid = new Grid(6, 2);
+      grid.dropTile(0, 0);
+      grid.dropTile(0, 0);
+
+      expect(grid.canDropInColumn(0)).toBe(false);
+    });
+  });
 });

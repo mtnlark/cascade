@@ -181,4 +181,18 @@ export class Grid {
 
     return { chains, totalCleared };
   }
+
+  canDropInColumn(col: number): boolean {
+    if (col < 0 || col >= this.cols) return false;
+    return this.cells[col][0] === null;
+  }
+
+  isGameOver(): boolean {
+    for (let col = 0; col < this.cols; col++) {
+      if (this.canDropInColumn(col)) {
+        return false;
+      }
+    }
+    return true;
+  }
 }
