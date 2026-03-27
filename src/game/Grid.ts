@@ -11,6 +11,16 @@ export interface FallenTile {
   toRow: number;
 }
 
+export interface CascadeChain {
+  cleared: Position[];
+  fallen: FallenTile[];
+}
+
+export interface CascadeResult {
+  chains: CascadeChain[];
+  totalCleared: number;
+}
+
 export class Grid {
   readonly cols: number;
   readonly rows: number;
@@ -143,5 +153,32 @@ export class Grid {
     }
 
     return matches;
+  }
+
+  resolveCascades(minSize: number): CascadeResult {
+    const chains: CascadeChain[] = [];
+    let totalCleared = 0;
+
+    while (true) {
+      const matches = this.findAllMatches(minSize);
+      if (matches.length === 0) break;
+
+      // Combine all matches for this chain
+      const allCleared: Position[] = matches.flat();
+      totalCleared += allCleared.length;
+
+      // Clear them
+      this.clearGroup(allCleared);
+
+      // Apply gravity
+      const fallen = this.applyGravity();
+
+      chains.push({
+        cleared: allCleared,
+        fallen,
+      });
+    }
+
+    return { chains, totalCleared };
   }
 }

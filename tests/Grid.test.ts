@@ -211,4 +211,59 @@ describe('Grid', () => {
       expect(matches).toHaveLength(0);
     });
   });
+
+  describe('resolveCascades', () => {
+    it('clears matches and returns chain count', () => {
+      const grid = new Grid(6, 12);
+      grid.dropTile(0, 0);
+      grid.dropTile(1, 0);
+      grid.dropTile(2, 0);
+      grid.dropTile(3, 0);
+
+      const result = grid.resolveCascades(4);
+
+      expect(result.chains).toHaveLength(1);
+      expect(result.chains[0].cleared).toHaveLength(4);
+      expect(grid.getCell(0, 11)).toBe(null);
+    });
+
+    it('handles chain reactions', () => {
+      const grid = new Grid(6, 12);
+      // Set up a chain reaction:
+      // Bottom: 3 red + 1 blue (no match)
+      // When blue clears, 4th red falls and completes match
+
+      // Bottom row: R R R B
+      grid.dropTile(0, 0);
+      grid.dropTile(1, 0);
+      grid.dropTile(2, 0);
+      grid.dropTile(3, 1);
+
+      // Stack blues to make them match
+      grid.dropTile(3, 1);
+      grid.dropTile(3, 1);
+      grid.dropTile(3, 1);
+
+      // Put a red on top of blues
+      grid.dropTile(3, 0);
+
+      // Now we have:
+      // Col 3: R (top), B, B, B, B (bottom row 11)
+      // When blues clear, R falls to row 11, completing R R R R
+
+      const result = grid.resolveCascades(4);
+
+      expect(result.chains.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('returns empty chains when no matches', () => {
+      const grid = new Grid(6, 12);
+      grid.dropTile(0, 0);
+      grid.dropTile(1, 1);
+
+      const result = grid.resolveCascades(4);
+
+      expect(result.chains).toHaveLength(0);
+    });
+  });
 });
