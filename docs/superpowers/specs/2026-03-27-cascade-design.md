@@ -187,7 +187,14 @@ cascade/
 
 ### Deployment
 - Build to static files via Vite
-- Host on Vercel, GitHub Pages, Netlify, or any static host
+- **Primary host:** Vercel (optimized for this)
+- Repository will be open source on GitHub
+
+### Open Source Considerations
+- MIT license (permissive, standard for games)
+- Clean README with setup instructions
+- No secrets or API keys required (pure client-side)
+- `.gitignore` for node_modules, dist, etc.
 
 ## Success Criteria
 
