@@ -214,6 +214,7 @@ export class GameScene extends Phaser.Scene {
     // Add score
     const points = this.scoreManager.addChain(chain.cleared.length);
     this.scoreText.setText(`Score: ${this.scoreManager.score}`);
+    this.updateDifficulty();
 
     // Show multiplier text if > 1x
     if (this.scoreManager.multiplier > 2) {
@@ -329,6 +330,42 @@ export class GameScene extends Phaser.Scene {
       alpha: 0,
       delay: 2000,
       duration: 500,
+      onComplete: () => text.destroy(),
+    });
+  }
+
+  private updateDifficulty(): void {
+    if (this.mode !== 'endless') return;
+
+    const score = this.scoreManager.score;
+    const thresholds = [500, 1500]; // From config.ts DIFFICULTY_THRESHOLDS
+
+    let newColorCount = INITIAL_COLOR_COUNT;
+    for (const threshold of thresholds) {
+      if (score >= threshold) {
+        newColorCount++;
+      }
+    }
+
+    if (newColorCount > this.colorCount && newColorCount <= COLORS.length) {
+      this.colorCount = newColorCount;
+      this.showNewColorMessage();
+    }
+  }
+
+  private showNewColorMessage(): void {
+    const { width, height } = this.cameras.main;
+    const text = this.add.text(width / 2, height / 3, 'NEW COLOR!', {
+      fontSize: '32px',
+      color: '#da70d6',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+
+    this.tweens.add({
+      targets: text,
+      scale: 1.3,
+      alpha: 0,
+      duration: 1000,
       onComplete: () => text.destroy(),
     });
   }
