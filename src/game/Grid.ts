@@ -118,4 +118,30 @@ export class Grid {
 
     return fallen;
   }
+
+  findAllMatches(minSize: number): Position[][] {
+    const visited = new Set<string>();
+    const matches: Position[][] = [];
+    const key = (col: number, row: number) => `${col},${row}`;
+
+    for (let col = 0; col < this.cols; col++) {
+      for (let row = 0; row < this.rows; row++) {
+        if (this.cells[col][row] === null) continue;
+        if (visited.has(key(col, row))) continue;
+
+        const group = this.findConnectedGroup(col, row);
+
+        // Mark all cells in group as visited
+        for (const pos of group) {
+          visited.add(key(pos.col, pos.row));
+        }
+
+        if (group.length >= minSize) {
+          matches.push(group);
+        }
+      }
+    }
+
+    return matches;
+  }
 }

@@ -157,4 +157,58 @@ describe('Grid', () => {
       expect(fallen).toContainEqual({ col: 0, fromRow: 10, toRow: 11 });
     });
   });
+
+  describe('findAllMatches', () => {
+    it('returns empty array when no matches exist', () => {
+      const grid = new Grid(6, 12);
+      grid.dropTile(0, 0);
+      grid.dropTile(1, 1);
+
+      const matches = grid.findAllMatches(4);
+
+      expect(matches).toHaveLength(0);
+    });
+
+    it('finds a group of 4 as a match', () => {
+      const grid = new Grid(6, 12);
+      grid.dropTile(0, 0);
+      grid.dropTile(1, 0);
+      grid.dropTile(2, 0);
+      grid.dropTile(3, 0);
+
+      const matches = grid.findAllMatches(4);
+
+      expect(matches).toHaveLength(1);
+      expect(matches[0]).toHaveLength(4);
+    });
+
+    it('finds multiple separate matches', () => {
+      const grid = new Grid(6, 12);
+      // Group 1: 4 of color 0
+      grid.dropTile(0, 0);
+      grid.dropTile(1, 0);
+      grid.dropTile(2, 0);
+      grid.dropTile(3, 0);
+      // Group 2: 4 of color 1 (stacked)
+      grid.dropTile(5, 1);
+      grid.dropTile(5, 1);
+      grid.dropTile(5, 1);
+      grid.dropTile(5, 1);
+
+      const matches = grid.findAllMatches(4);
+
+      expect(matches).toHaveLength(2);
+    });
+
+    it('does not count groups smaller than minSize', () => {
+      const grid = new Grid(6, 12);
+      grid.dropTile(0, 0);
+      grid.dropTile(1, 0);
+      grid.dropTile(2, 0); // only 3
+
+      const matches = grid.findAllMatches(4);
+
+      expect(matches).toHaveLength(0);
+    });
+  });
 });
