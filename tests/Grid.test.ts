@@ -310,4 +310,38 @@ describe('Grid', () => {
       expect(grid.canDropInColumn(0)).toBe(false);
     });
   });
+
+  describe('undo', () => {
+    it('saves state before drop and restores on undo', () => {
+      const grid = new Grid(6, 12);
+      grid.dropTile(0, 0);
+      grid.saveState();
+      grid.dropTile(1, 1);
+
+      expect(grid.getCell(1, 11)).toBe(1);
+
+      grid.undo();
+
+      expect(grid.getCell(1, 11)).toBe(null);
+      expect(grid.getCell(0, 11)).toBe(0); // first drop still there
+    });
+
+    it('returns false when no saved state', () => {
+      const grid = new Grid(6, 12);
+
+      const result = grid.undo();
+
+      expect(result).toBe(false);
+    });
+
+    it('returns true when undo succeeds', () => {
+      const grid = new Grid(6, 12);
+      grid.saveState();
+      grid.dropTile(0, 0);
+
+      const result = grid.undo();
+
+      expect(result).toBe(true);
+    });
+  });
 });

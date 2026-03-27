@@ -25,6 +25,7 @@ export class Grid {
   readonly cols: number;
   readonly rows: number;
   private cells: CellState[][];
+  private savedState: CellState[][] | null = null;
 
   constructor(cols: number, rows: number) {
     this.cols = cols;
@@ -194,5 +195,22 @@ export class Grid {
       }
     }
     return true;
+  }
+
+  saveState(): void {
+    this.savedState = this.cells.map(col => [...col]);
+  }
+
+  undo(): boolean {
+    if (this.savedState === null) {
+      return false;
+    }
+    this.cells = this.savedState.map(col => [...col]);
+    this.savedState = null;
+    return true;
+  }
+
+  hasSavedState(): boolean {
+    return this.savedState !== null;
   }
 }
