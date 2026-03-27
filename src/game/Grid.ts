@@ -5,6 +5,12 @@ export interface Position {
   row: number;
 }
 
+export interface FallenTile {
+  col: number;
+  fromRow: number;
+  toRow: number;
+}
+
 export class Grid {
   readonly cols: number;
   readonly rows: number;
@@ -80,5 +86,36 @@ export class Grid {
     }
 
     return group;
+  }
+
+  clearGroup(positions: Position[]): void {
+    for (const { col, row } of positions) {
+      if (col >= 0 && col < this.cols && row >= 0 && row < this.rows) {
+        this.cells[col][row] = null;
+      }
+    }
+  }
+
+  applyGravity(): FallenTile[] {
+    const fallen: FallenTile[] = [];
+
+    for (let col = 0; col < this.cols; col++) {
+      // Work from bottom to top
+      let writeRow = this.rows - 1;
+
+      for (let readRow = this.rows - 1; readRow >= 0; readRow--) {
+        const cell = this.cells[col][readRow];
+        if (cell !== null) {
+          if (readRow !== writeRow) {
+            this.cells[col][writeRow] = cell;
+            this.cells[col][readRow] = null;
+            fallen.push({ col, fromRow: readRow, toRow: writeRow });
+          }
+          writeRow--;
+        }
+      }
+    }
+
+    return fallen;
   }
 }

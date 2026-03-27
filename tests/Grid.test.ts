@@ -113,4 +113,48 @@ describe('Grid', () => {
       expect(group).toHaveLength(1);
     });
   });
+
+  describe('clearGroup', () => {
+    it('removes tiles at specified positions', () => {
+      const grid = new Grid(6, 12);
+      grid.dropTile(0, 0);
+      grid.dropTile(1, 0);
+
+      grid.clearGroup([{ col: 0, row: 11 }, { col: 1, row: 11 }]);
+
+      expect(grid.getCell(0, 11)).toBe(null);
+      expect(grid.getCell(1, 11)).toBe(null);
+    });
+  });
+
+  describe('applyGravity', () => {
+    it('makes floating tiles fall down', () => {
+      const grid = new Grid(6, 12);
+      grid.dropTile(0, 0); // row 11
+      grid.dropTile(0, 1); // row 10
+      grid.dropTile(0, 2); // row 9
+
+      // Clear middle tile
+      grid.clearGroup([{ col: 0, row: 10 }]);
+
+      // Apply gravity
+      const fallen = grid.applyGravity();
+
+      expect(grid.getCell(0, 11)).toBe(0); // unchanged
+      expect(grid.getCell(0, 10)).toBe(2); // fell from row 9
+      expect(grid.getCell(0, 9)).toBe(null); // now empty
+      expect(fallen).toHaveLength(1);
+    });
+
+    it('returns positions of tiles that moved', () => {
+      const grid = new Grid(6, 12);
+      grid.dropTile(0, 0);
+      grid.dropTile(0, 1);
+      grid.clearGroup([{ col: 0, row: 11 }]);
+
+      const fallen = grid.applyGravity();
+
+      expect(fallen).toContainEqual({ col: 0, fromRow: 10, toRow: 11 });
+    });
+  });
 });
