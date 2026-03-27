@@ -13,5 +13,3 @@ const config: Phaser.Types.Core.GameConfig = {
 };
 
 new Phaser.Game(config);
-
-console.log('Cascade initialized');
