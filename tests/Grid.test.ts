@@ -44,4 +44,73 @@ describe('Grid', () => {
       expect(result).toBe(-1);
     });
   });
+
+  describe('findConnectedGroup', () => {
+    it('finds a single tile as a group of 1', () => {
+      const grid = new Grid(6, 12);
+      grid.dropTile(0, 0);
+
+      const group = grid.findConnectedGroup(0, 11);
+
+      expect(group).toHaveLength(1);
+      expect(group).toContainEqual({ col: 0, row: 11 });
+    });
+
+    it('finds horizontally connected tiles', () => {
+      const grid = new Grid(6, 12);
+      grid.dropTile(0, 0);
+      grid.dropTile(1, 0);
+      grid.dropTile(2, 0);
+
+      const group = grid.findConnectedGroup(1, 11);
+
+      expect(group).toHaveLength(3);
+    });
+
+    it('finds vertically connected tiles', () => {
+      const grid = new Grid(6, 12);
+      grid.dropTile(0, 0);
+      grid.dropTile(0, 0);
+      grid.dropTile(0, 0);
+
+      const group = grid.findConnectedGroup(0, 11);
+
+      expect(group).toHaveLength(3);
+    });
+
+    it('finds L-shaped connected groups', () => {
+      const grid = new Grid(6, 12);
+      // Create L shape:
+      // . X
+      // X X
+      grid.dropTile(0, 0); // bottom-left
+      grid.dropTile(1, 0); // bottom-right
+      grid.dropTile(1, 0); // top-right (stacks)
+
+      const group = grid.findConnectedGroup(0, 11);
+
+      expect(group).toHaveLength(3);
+    });
+
+    it('does not connect diagonally', () => {
+      const grid = new Grid(6, 12);
+      grid.dropTile(0, 0);
+      grid.dropTile(1, 1); // different color, blocks diagonal
+      grid.dropTile(1, 0); // same color but diagonal from first
+
+      const group = grid.findConnectedGroup(0, 11);
+
+      expect(group).toHaveLength(1);
+    });
+
+    it('does not connect different colors', () => {
+      const grid = new Grid(6, 12);
+      grid.dropTile(0, 0);
+      grid.dropTile(1, 1); // different color
+
+      const group = grid.findConnectedGroup(0, 11);
+
+      expect(group).toHaveLength(1);
+    });
+  });
 });
