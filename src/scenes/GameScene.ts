@@ -276,11 +276,11 @@ export class GameScene extends Phaser.Scene {
 
   private checkGameOver(): void {
     if (this.grid.isGameOver()) {
-      this.storage.setHighScore(this.mode, this.scoreManager.score);
+      const isHighScore = this.storage.setHighScore(this.mode, this.scoreManager.score);
       this.scene.start('GameOverScene', {
         score: this.scoreManager.score,
         mode: this.mode,
-        isHighScore: this.scoreManager.score >= this.storage.getHighScore(this.mode),
+        isHighScore,
       });
     }
   }
