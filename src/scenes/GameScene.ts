@@ -100,6 +100,18 @@ export class GameScene extends Phaser.Scene {
       COLORS[0]
     ).setStrokeStyle(2, 0xffffff, 0.3);
 
+    // UI: Undo button
+    const undoBtn = this.add.text(previewX, previewY + 120, '[UNDO]', {
+      fontSize: '16px',
+      color: '#666666',
+    })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+
+    undoBtn.on('pointerover', () => undoBtn.setStyle({ color: '#ffffff' }));
+    undoBtn.on('pointerout', () => undoBtn.setStyle({ color: '#666666' }));
+    undoBtn.on('pointerdown', () => this.undoLastMove());
+
     // Generate first next tile
     this.generateNextTile();
 
