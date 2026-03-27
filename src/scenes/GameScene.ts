@@ -297,13 +297,39 @@ export class GameScene extends Phaser.Scene {
   }
 
   private checkGameOver(): void {
+    if (this.mode === 'practice') {
+      // Practice mode: never ends, just show message if grid is full
+      if (this.grid.isGameOver()) {
+        this.showPracticeFullMessage();
+      }
+      return;
+    }
+
     if (this.grid.isGameOver()) {
-      const isHighScore = this.storage.setHighScore(this.mode, this.scoreManager.score);
+      this.storage.setHighScore(this.mode, this.scoreManager.score);
       this.scene.start('GameOverScene', {
         score: this.scoreManager.score,
         mode: this.mode,
-        isHighScore,
+        isHighScore: this.storage.setHighScore(this.mode, this.scoreManager.score),
       });
     }
+  }
+
+  private showPracticeFullMessage(): void {
+    const { width, height } = this.cameras.main;
+    const text = this.add.text(width / 2, height / 2, 'Grid full! Use UNDO', {
+      fontSize: '24px',
+      color: '#ff6b9d',
+      backgroundColor: '#1a1a2e',
+      padding: { x: 16, y: 8 },
+    }).setOrigin(0.5);
+
+    this.tweens.add({
+      targets: text,
+      alpha: 0,
+      delay: 2000,
+      duration: 500,
+      onComplete: () => text.destroy(),
+    });
   }
 }
