@@ -27,4 +27,20 @@ export class Grid {
     }
     return this.cells[col][row];
   }
+
+  dropTile(col: number, colorIndex: number): number {
+    if (col < 0 || col >= this.cols) {
+      return -1;
+    }
+
+    // Find the lowest empty row in this column
+    for (let row = this.rows - 1; row >= 0; row--) {
+      if (this.cells[col][row] === null) {
+        this.cells[col][row] = colorIndex;
+        return row;
+      }
+    }
+
+    return -1; // Column is full
+  }
 }
