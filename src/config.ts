@@ -1,8 +1,8 @@
 export const GRID_COLS = 6;
 export const GRID_ROWS = 12;
 
-export const TILE_SIZE = 48;
-export const GRID_PADDING = 16;
+export const TILE_SIZE = 56;
+export const GRID_PADDING = 20;
 
 export const COLORS = [
   0x00d4ff, // Electric blue

@@ -7,13 +7,16 @@ import { BACKGROUND_COLOR } from './config';
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
-  width: 480,
-  height: 640,
+  width: 600,
+  height: 800,
   backgroundColor: BACKGROUND_COLOR,
-  parent: document.body,
+  parent: 'game-container',
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
+  },
+  render: {
+    antialias: true,
   },
   scene: [BootScene, MenuScene, GameScene, GameOverScene],
 };
