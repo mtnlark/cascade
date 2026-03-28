@@ -207,18 +207,79 @@ export class Grid {
       if (matches.length === 0) break;
 
       const allCleared: Position[] = matches.flat();
-      totalCleared += allCleared.length;
 
-      this.clearGroup(allCleared);
+      // Process special tiles to get additional clears
+      const specialClears = this.processSpecialTiles(allCleared);
+      const combinedClears = this.mergePositions(allCleared, specialClears);
+
+      totalCleared += combinedClears.length;
+
+      this.clearGroup(combinedClears);
       const fallen = this.applyGravity();
 
       chains.push({
-        cleared: allCleared,
+        cleared: combinedClears,
         fallen,
       });
     }
 
     return { chains, totalCleared };
+  }
+
+  private processSpecialTiles(positions: Position[]): Position[] {
+    const extra: Position[] = [];
+    const processedBombs = new Set<string>();
+    const bombQueue = positions.filter(p => this.getCell(p.col, p.row)?.type === 'bomb');
+
+    // Process bombs with chain reactions
+    while (bombQueue.length > 0) {
+      const bomb = bombQueue.shift()!;
+      const key = `${bomb.col},${bomb.row}`;
+      if (processedBombs.has(key)) continue;
+      processedBombs.add(key);
+
+      const area = this.getBombClearArea(bomb.col, bomb.row);
+      extra.push(...area);
+
+      // Check if any cleared tiles are also bombs (chain reaction)
+      for (const pos of area) {
+        const cell = this.getCell(pos.col, pos.row);
+        if (cell?.type === 'bomb' && !processedBombs.has(`${pos.col},${pos.row}`)) {
+          bombQueue.push(pos);
+        }
+      }
+    }
+
+    return extra;
+  }
+
+  private getBombClearArea(col: number, row: number): Position[] {
+    const positions: Position[] = [];
+    for (let c = col - 1; c <= col + 1; c++) {
+      for (let r = row - 1; r <= row + 1; r++) {
+        if (c >= 0 && c < this.cols && r >= 0 && r < this.rows) {
+          if (this.cells[c][r] !== null) {
+            positions.push({ col: c, row: r });
+          }
+        }
+      }
+    }
+    return positions;
+  }
+
+  private mergePositions(a: Position[], b: Position[]): Position[] {
+    const seen = new Set<string>();
+    const result: Position[] = [];
+
+    for (const pos of [...a, ...b]) {
+      const key = `${pos.col},${pos.row}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(pos);
+      }
+    }
+
+    return result;
   }
 
   canDropInColumn(col: number): boolean {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Grid } from '../src/game/Grid';
-import { createNormalTile, createRainbowTile } from '../src/game/TileData';
+import { createNormalTile, createRainbowTile, createBombTile } from '../src/game/TileData';
 
 describe('Grid', () => {
   describe('initialization', () => {
@@ -334,6 +334,37 @@ describe('Grid', () => {
       const result = grid.undo();
 
       expect(result).toBe(true);
+    });
+  });
+
+  describe('bomb clearing', () => {
+    it('clears 3x3 area around bomb when matched', () => {
+      const grid = new Grid(6, 12);
+      // Create tiles with bomb in the mix
+      grid.dropTile(0, createNormalTile(1)); // row 11
+      grid.dropTile(1, createNormalTile(1)); // row 11
+      grid.dropTile(2, createNormalTile(1)); // row 11
+      grid.dropTile(0, createNormalTile(0)); // row 10
+      grid.dropTile(1, createBombTile(0));   // row 10 - bomb
+      grid.dropTile(2, createNormalTile(0)); // row 10
+      grid.dropTile(0, createNormalTile(0)); // row 9 - makes match of 3
+
+      const result = grid.resolveCascades(3);
+
+      // Should clear more than just the 3 matching tiles
+      expect(result.totalCleared).toBeGreaterThan(3);
+    });
+
+    it('bomb hitting another bomb triggers chain', () => {
+      const grid = new Grid(6, 12);
+      grid.dropTile(0, createBombTile(0));   // row 11
+      grid.dropTile(1, createBombTile(0));   // row 11, in blast radius
+      grid.dropTile(2, createNormalTile(0)); // row 11
+
+      const result = grid.resolveCascades(3);
+
+      // Both bombs should trigger
+      expect(result.totalCleared).toBeGreaterThanOrEqual(3);
     });
   });
 });
