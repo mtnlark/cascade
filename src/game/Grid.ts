@@ -1,4 +1,6 @@
-export type CellState = number | null; // null = empty, number = color index
+import { TileData, TileType } from './TileData';
+
+export type CellState = TileData | null;
 
 export interface Position {
   col: number;
@@ -50,25 +52,34 @@ export class Grid {
     return this.cells[col][row];
   }
 
-  dropTile(col: number, colorIndex: number): number {
+  getCellColor(col: number, row: number): number | null {
+    const cell = this.getCell(col, row);
+    return cell ? cell.colorIndex : null;
+  }
+
+  getCellType(col: number, row: number): TileType | null {
+    const cell = this.getCell(col, row);
+    return cell ? cell.type : null;
+  }
+
+  dropTile(col: number, tile: TileData): number {
     if (col < 0 || col >= this.cols) {
       return -1;
     }
 
-    // Find the lowest empty row in this column
     for (let row = this.rows - 1; row >= 0; row--) {
       if (this.cells[col][row] === null) {
-        this.cells[col][row] = colorIndex;
+        this.cells[col][row] = tile;
         return row;
       }
     }
 
-    return -1; // Column is full
+    return -1;
   }
 
   findConnectedGroup(startCol: number, startRow: number): Position[] {
-    const color = this.getCell(startCol, startRow);
-    if (color === null) {
+    const startCell = this.getCell(startCol, startRow);
+    if (startCell === null) {
       return [];
     }
 
@@ -78,18 +89,34 @@ export class Grid {
 
     const key = (col: number, row: number) => `${col},${row}`;
 
+    // Determine the "target color" for matching
+    // If starting cell is rainbow, find an adjacent non-rainbow color
+    const targetColor = startCell.type === 'rainbow'
+      ? this.findAdjacentColor(startCol, startRow)
+      : startCell.colorIndex;
+
+    if (targetColor === null && startCell.type === 'rainbow') {
+      // Isolated rainbow, just return it
+      return [{ col: startCol, row: startRow }];
+    }
+
     while (queue.length > 0) {
       const { col, row } = queue.shift()!;
       const k = key(col, row);
 
       if (visited.has(k)) continue;
       if (col < 0 || col >= this.cols || row < 0 || row >= this.rows) continue;
-      if (this.cells[col][row] !== color) continue;
+
+      const cell = this.cells[col][row];
+      if (cell === null) continue;
+
+      // Rainbow matches any color, otherwise must match target
+      const matches = cell.type === 'rainbow' || cell.colorIndex === targetColor;
+      if (!matches) continue;
 
       visited.add(k);
       group.push({ col, row });
 
-      // Check orthogonal neighbors
       queue.push({ col: col - 1, row });
       queue.push({ col: col + 1, row });
       queue.push({ col, row: row - 1 });
@@ -97,6 +124,23 @@ export class Grid {
     }
 
     return group;
+  }
+
+  private findAdjacentColor(col: number, row: number): number | null {
+    const neighbors = [
+      { col: col - 1, row },
+      { col: col + 1, row },
+      { col, row: row - 1 },
+      { col, row: row + 1 },
+    ];
+
+    for (const pos of neighbors) {
+      const cell = this.getCell(pos.col, pos.row);
+      if (cell && cell.type !== 'rainbow') {
+        return cell.colorIndex;
+      }
+    }
+    return null;
   }
 
   clearGroup(positions: Position[]): void {
@@ -111,7 +155,6 @@ export class Grid {
     const fallen: FallenTile[] = [];
 
     for (let col = 0; col < this.cols; col++) {
-      // Work from bottom to top
       let writeRow = this.rows - 1;
 
       for (let readRow = this.rows - 1; readRow >= 0; readRow--) {
@@ -142,7 +185,6 @@ export class Grid {
 
         const group = this.findConnectedGroup(col, row);
 
-        // Mark all cells in group as visited
         for (const pos of group) {
           visited.add(key(pos.col, pos.row));
         }
@@ -164,14 +206,10 @@ export class Grid {
       const matches = this.findAllMatches(minSize);
       if (matches.length === 0) break;
 
-      // Combine all matches for this chain
       const allCleared: Position[] = matches.flat();
       totalCleared += allCleared.length;
 
-      // Clear them
       this.clearGroup(allCleared);
-
-      // Apply gravity
       const fallen = this.applyGravity();
 
       chains.push({
@@ -198,14 +236,14 @@ export class Grid {
   }
 
   saveState(): void {
-    this.savedState = this.cells.map(col => [...col]);
+    this.savedState = this.cells.map(col => col.map(cell => cell ? { ...cell } : null));
   }
 
   undo(): boolean {
     if (this.savedState === null) {
       return false;
     }
-    this.cells = this.savedState.map(col => [...col]);
+    this.cells = this.savedState.map(col => col.map(cell => cell ? { ...cell } : null));
     this.savedState = null;
     return true;
   }
