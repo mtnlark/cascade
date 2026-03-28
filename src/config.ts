@@ -23,7 +23,7 @@ export const COLOR_NAMES = [
 ] as const;
 
 export const INITIAL_COLOR_COUNT = 4;
-export const MIN_MATCH_SIZE = 4;
+export const MIN_MATCH_SIZE = 3;
 
 export const POINTS_PER_TILE = 10;
 
@@ -31,6 +31,12 @@ export const DIFFICULTY_THRESHOLDS = [
   500,  // Add 5th color at 500 points
   1500, // Add 6th color at 1500 points
 ] as const;
+
+export const SPECIAL_TILE_RATES = {
+  rainbow: 0.05,
+  bomb: 0.05,
+  colorBomb: 0.05,
+} as const;
 
 export const BACKGROUND_COLOR = 0x1a1a2e;
 export const GRID_BACKGROUND_COLOR = 0x16213e;
