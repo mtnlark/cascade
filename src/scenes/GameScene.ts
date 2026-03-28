@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { Grid } from '../game/Grid';
 import { Tile } from '../game/Tile';
+import { TileQueue } from '../game/TileQueue';
+import { TileData } from '../game/TileData';
 import { ScoreManager } from '../game/ScoreManager';
 import { Storage, GameMode } from '../utils/storage';
 import { getDailySeed, seededRandom } from '../utils/daily';
@@ -30,11 +32,14 @@ export class GameScene extends Phaser.Scene {
   private gridX!: number;
   private gridY!: number;
   private colorCount: number = INITIAL_COLOR_COUNT;
-  private nextColorIndex: number = 0;
   private rng: (() => number) | null = null;
 
+  private tileQueue!: TileQueue;
+  private previewTiles: Phaser.GameObjects.Container[] = [];
+  private previewX!: number;
+  private previewY!: number;
+
   private scoreText!: Phaser.GameObjects.Text;
-  private nextPreview!: Phaser.GameObjects.Rectangle;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -54,9 +59,12 @@ export class GameScene extends Phaser.Scene {
       this.rng = seededRandom(getDailySeed());
     }
 
+    // Initialize tile queue
+    this.tileQueue = new TileQueue(3, this.colorCount, this.rng);
+
     const { width, height } = this.cameras.main;
 
-    // Calculate grid position (centered)
+    // Calculate grid position (centered, with room for preview on right)
     const gridWidth = GRID_COLS * TILE_SIZE;
     const gridHeight = GRID_ROWS * TILE_SIZE;
     this.gridX = (width - gridWidth) / 2 - 40;
@@ -89,25 +97,19 @@ export class GameScene extends Phaser.Scene {
       color: UI_TEXT_COLOR,
     }).setOrigin(1, 0);
 
-    // UI: Next tile preview
-    const previewX = this.gridX + gridWidth + 50;
-    const previewY = this.gridY + 60;
+    // UI: Preview queue
+    this.previewX = this.gridX + gridWidth + 60;
+    this.previewY = this.gridY + 30;
 
-    this.add.text(previewX, previewY - 30, 'NEXT', {
+    this.add.text(this.previewX, this.previewY - 25, 'NEXT', {
       fontSize: '16px',
       color: '#888888',
     }).setOrigin(0.5);
 
-    this.nextPreview = this.add.rectangle(
-      previewX,
-      previewY + 20,
-      TILE_SIZE - 4,
-      TILE_SIZE - 4,
-      COLORS[0]
-    ).setStrokeStyle(2, 0xffffff, 0.3);
+    this.renderPreviewQueue();
 
     // UI: Undo button
-    const undoBtn = this.add.text(previewX, previewY + 120, '[UNDO]', {
+    const undoBtn = this.add.text(this.previewX, this.previewY + 180, '[UNDO]', {
       fontSize: '16px',
       color: '#666666',
     })
@@ -118,20 +120,44 @@ export class GameScene extends Phaser.Scene {
     undoBtn.on('pointerout', () => undoBtn.setStyle({ color: '#666666' }));
     undoBtn.on('pointerdown', () => this.undoLastMove());
 
-    // Generate first next tile
-    this.generateNextTile();
-
     // Setup input
     this.setupInput();
   }
 
-  private generateNextTile(): void {
-    if (this.rng) {
-      this.nextColorIndex = Math.floor(this.rng() * this.colorCount);
-    } else {
-      this.nextColorIndex = Phaser.Math.Between(0, this.colorCount - 1);
+  private renderPreviewQueue(): void {
+    // Clear existing preview tiles
+    this.previewTiles.forEach(t => t.destroy());
+    this.previewTiles = [];
+
+    const previewSize = TILE_SIZE * 0.7;
+    const spacing = previewSize + 10;
+
+    for (let i = 0; i < 3; i++) {
+      const tileData = this.tileQueue.peek(i);
+      if (!tileData) continue;
+
+      const y = this.previewY + i * spacing;
+      const container = this.add.container(this.previewX, y);
+
+      const color = tileData.type === 'rainbow' ? 0xffffff : COLORS[tileData.colorIndex];
+      const rect = this.add.rectangle(0, 0, previewSize, previewSize, color);
+      rect.setStrokeStyle(2, 0xffffff, 0.3);
+      container.add(rect);
+
+      // Add icon for special tiles
+      if (tileData.type === 'bomb') {
+        const icon = this.add.text(0, 0, '💣', { fontSize: '18px' }).setOrigin(0.5);
+        container.add(icon);
+      } else if (tileData.type === 'colorBomb') {
+        const icon = this.add.text(0, 0, '⭐', { fontSize: '18px' }).setOrigin(0.5);
+        container.add(icon);
+      } else if (tileData.type === 'rainbow') {
+        const icon = this.add.text(0, 0, '🌈', { fontSize: '16px' }).setOrigin(0.5);
+        container.add(icon);
+      }
+
+      this.previewTiles.push(container);
     }
-    this.nextPreview.setFillStyle(COLORS[this.nextColorIndex]);
   }
 
   private setupInput(): void {
@@ -159,7 +185,6 @@ export class GameScene extends Phaser.Scene {
       0,
       GRID_COLS - 1
     );
-    // Visual feedback could be added here
   }
 
   private dropTileAtSelection(): void {
@@ -172,13 +197,14 @@ export class GameScene extends Phaser.Scene {
     // Save state for undo
     this.grid.saveState();
 
-    const colorIndex = this.nextColorIndex;
-    const landedRow = this.grid.dropTile(col, colorIndex);
+    // Get tile from queue
+    const tileData = this.tileQueue.next();
+    const landedRow = this.grid.dropTile(col, tileData);
 
     if (landedRow === -1) return;
 
     // Create visual tile
-    const tile = new Tile(this, col, 0, colorIndex, this.gridX, this.gridY);
+    const tile = new Tile(this, col, 0, tileData.colorIndex, tileData.type, this.gridX, this.gridY);
     this.tiles.set(`${col},${landedRow}`, tile);
 
     // Animate drop
@@ -186,7 +212,8 @@ export class GameScene extends Phaser.Scene {
       this.resolveCascades();
     });
 
-    this.generateNextTile();
+    // Update preview
+    this.renderPreviewQueue();
   }
 
   private resolveCascades(): void {
@@ -275,7 +302,6 @@ export class GameScene extends Phaser.Scene {
 
   private undoLastMove(): void {
     if (this.grid.undo()) {
-      // Rebuild visual tiles from grid state
       this.rebuildTilesFromGrid();
     }
   }
@@ -288,9 +314,9 @@ export class GameScene extends Phaser.Scene {
     // Recreate from grid state
     for (let col = 0; col < GRID_COLS; col++) {
       for (let row = 0; row < GRID_ROWS; row++) {
-        const colorIndex = this.grid.getCell(col, row);
-        if (colorIndex !== null) {
-          const tile = new Tile(this, col, row, colorIndex, this.gridX, this.gridY);
+        const cellData = this.grid.getCell(col, row);
+        if (cellData !== null) {
+          const tile = new Tile(this, col, row, cellData.colorIndex, cellData.type, this.gridX, this.gridY);
           this.tiles.set(`${col},${row}`, tile);
         }
       }
@@ -299,7 +325,6 @@ export class GameScene extends Phaser.Scene {
 
   private checkGameOver(): void {
     if (this.mode === 'practice') {
-      // Practice mode: never ends, just show message if grid is full
       if (this.grid.isGameOver()) {
         this.showPracticeFullMessage();
       }
@@ -338,7 +363,7 @@ export class GameScene extends Phaser.Scene {
     if (this.mode !== 'endless') return;
 
     const score = this.scoreManager.score;
-    const thresholds = [500, 1500]; // From config.ts DIFFICULTY_THRESHOLDS
+    const thresholds = [500, 1500];
 
     let newColorCount = INITIAL_COLOR_COUNT;
     for (const threshold of thresholds) {
@@ -349,6 +374,7 @@ export class GameScene extends Phaser.Scene {
 
     if (newColorCount > this.colorCount && newColorCount <= COLORS.length) {
       this.colorCount = newColorCount;
+      this.tileQueue.setColorCount(newColorCount);
       this.showNewColorMessage();
     }
   }
