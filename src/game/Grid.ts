@@ -250,7 +250,48 @@ export class Grid {
       }
     }
 
+    // Process color bombs (no chain reaction for color bombs)
+    for (const pos of positions) {
+      const cell = this.getCell(pos.col, pos.row);
+      if (cell?.type === 'colorBomb') {
+        const matchColor = this.findMatchColorInGroup(positions);
+        if (matchColor !== null) {
+          extra.push(...this.getColorBombClears(matchColor));
+        }
+      }
+    }
+
     return extra;
+  }
+
+  private findMatchColorInGroup(positions: Position[]): number | null {
+    for (const pos of positions) {
+      const cell = this.getCell(pos.col, pos.row);
+      if (cell && cell.type !== 'rainbow' && cell.type !== 'colorBomb') {
+        return cell.colorIndex;
+      }
+    }
+    // If no normal tiles, use color bomb's color
+    for (const pos of positions) {
+      const cell = this.getCell(pos.col, pos.row);
+      if (cell && cell.type === 'colorBomb') {
+        return cell.colorIndex;
+      }
+    }
+    return null;
+  }
+
+  private getColorBombClears(colorIndex: number): Position[] {
+    const positions: Position[] = [];
+    for (let col = 0; col < this.cols; col++) {
+      for (let row = 0; row < this.rows; row++) {
+        const cell = this.cells[col][row];
+        if (cell && cell.colorIndex === colorIndex) {
+          positions.push({ col, row });
+        }
+      }
+    }
+    return positions;
   }
 
   private getBombClearArea(col: number, row: number): Position[] {

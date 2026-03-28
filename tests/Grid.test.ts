@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Grid } from '../src/game/Grid';
-import { createNormalTile, createRainbowTile, createBombTile } from '../src/game/TileData';
+import { createNormalTile, createRainbowTile, createBombTile, createColorBombTile } from '../src/game/TileData';
 
 describe('Grid', () => {
   describe('initialization', () => {
@@ -365,6 +365,31 @@ describe('Grid', () => {
 
       // Both bombs should trigger
       expect(result.totalCleared).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  describe('color bomb clearing', () => {
+    it('clears all tiles of matched color', () => {
+      const grid = new Grid(6, 12);
+      // Scatter blue tiles (color 0) around the grid
+      grid.dropTile(0, createNormalTile(0)); // blue at col 0, row 11
+      grid.dropTile(2, createNormalTile(0)); // blue at col 2, row 11
+      grid.dropTile(4, createNormalTile(0)); // blue at col 4, row 11
+      grid.dropTile(1, createNormalTile(1)); // pink at col 1, row 11
+      grid.dropTile(3, createNormalTile(1)); // pink at col 3, row 11
+      // Stack to create color bomb match
+      grid.dropTile(0, createColorBombTile(0)); // color bomb at col 0, row 10
+      grid.dropTile(0, createNormalTile(0));    // blue at col 0, row 9
+
+      const result = grid.resolveCascades(3);
+
+      // Color bomb should clear ALL blue tiles including those at col 2 and 4
+      // Blues at col 2 and col 4 should be gone
+      expect(grid.getCell(2, 11)).toBe(null); // blue was cleared
+      expect(grid.getCell(4, 11)).toBe(null); // blue was cleared
+      // The pinks should remain
+      expect(grid.getCellColor(1, 11)).toBe(1); // pink still there
+      expect(grid.getCellColor(3, 11)).toBe(1); // pink still there
     });
   });
 });
