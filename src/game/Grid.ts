@@ -328,6 +328,16 @@ export class Grid {
     return this.cells[col][0] === null;
   }
 
+  getColumnHeight(col: number): number {
+    if (col < 0 || col >= this.cols) return 0;
+    for (let row = 0; row < this.rows; row++) {
+      if (this.cells[col][row] !== null) {
+        return this.rows - row;
+      }
+    }
+    return 0;
+  }
+
   isGameOver(): boolean {
     for (let col = 0; col < this.cols; col++) {
       if (this.canDropInColumn(col)) {

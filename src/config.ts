@@ -1,8 +1,12 @@
+// Render scale for high-DPI displays (2x for Retina)
+export const RENDER_SCALE = 2;
+
 export const GRID_COLS = 6;
 export const GRID_ROWS = 12;
 
-export const TILE_SIZE = 56;
-export const GRID_PADDING = 20;
+// All sizes are scaled for high-DPI rendering
+export const TILE_SIZE = 56 * RENDER_SCALE;
+export const GRID_PADDING = 20 * RENDER_SCALE;
 
 export const COLORS = [
   0x00d4ff, // Electric blue
@@ -26,6 +30,7 @@ export const INITIAL_COLOR_COUNT = 4;
 export const MIN_MATCH_SIZE = 3;
 
 export const POINTS_PER_TILE = 10;
+export const PREVIEW_QUEUE_SIZE = 5;
 
 export const DIFFICULTY_THRESHOLDS = [
   500,  // Add 5th color at 500 points
@@ -41,3 +46,6 @@ export const SPECIAL_TILE_RATES = {
 export const BACKGROUND_COLOR = 0x1a1a2e;
 export const GRID_BACKGROUND_COLOR = 0x16213e;
 export const UI_TEXT_COLOR = '#ffffff';
+
+// Helper for scaled font sizes
+export const scaledFont = (size: number) => `${size * RENDER_SCALE}px`;

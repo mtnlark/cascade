@@ -5,6 +5,7 @@ export class TileQueue {
   private queue: TileData[] = [];
   private colorCount: number;
   private rng: (() => number) | null;
+  private heldTile: TileData | null = null;
 
   constructor(size: number, colorCount: number, rng: (() => number) | null = null) {
     this.colorCount = colorCount;
@@ -31,6 +32,24 @@ export class TileQueue {
 
   setColorCount(count: number): void {
     this.colorCount = count;
+  }
+
+  getHeldTile(): TileData | null {
+    return this.heldTile;
+  }
+
+  hold(): TileData {
+    const current = this.queue[0];
+    if (this.heldTile) {
+      // Swap current with held
+      this.queue[0] = this.heldTile;
+    } else {
+      // First hold: move current to hold, advance queue
+      this.queue.shift();
+      this.queue.push(this.generateTile());
+    }
+    this.heldTile = current;
+    return this.queue[0];
   }
 
   private generateTile(): TileData {
