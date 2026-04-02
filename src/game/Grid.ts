@@ -433,10 +433,6 @@ export class Grid {
     return true;
   }
 
-  hasSavedState(): boolean {
-    return this.savedState !== null;
-  }
-
   /**
    * Simulates dropping a tile and returns what would match without modifying state.
    * Used for match preview on hover.
@@ -522,23 +518,5 @@ export class Grid {
     }
 
     return unlocked;
-  }
-
-  /**
-   * Get all locked tiles on the grid.
-   */
-  getLockedTiles(): Position[] {
-    const locked: Position[] = [];
-
-    for (let col = 0; col < this.cols; col++) {
-      for (let row = 0; row < this.rows; row++) {
-        const cell = this.cells[col][row];
-        if (cell && cell.isLocked) {
-          locked.push({ col, row });
-        }
-      }
-    }
-
-    return locked;
   }
 }

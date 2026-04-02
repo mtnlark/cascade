@@ -24,9 +24,6 @@ interface DailyGoalsData {
 
 interface StorageData {
   highScores: Record<GameMode, number>;
-  settings: {
-    crtFilter: boolean;
-  };
   daily: DailyStreak;
   challenges: ChallengeProgress;
   achievements: AchievementData;
@@ -42,9 +39,6 @@ const defaultData: StorageData = {
     practice: 0,
     challenge: 0,
     timed: 0,
-  },
-  settings: {
-    crtFilter: false,
   },
   daily: {
     currentStreak: 0,
@@ -104,20 +98,6 @@ export class Storage {
       return true;
     }
     return false;
-  }
-
-  getSetting<K extends keyof StorageData['settings']>(
-    key: K
-  ): StorageData['settings'][K] {
-    return this.data.settings[key];
-  }
-
-  setSetting<K extends keyof StorageData['settings']>(
-    key: K,
-    value: StorageData['settings'][K]
-  ): void {
-    this.data.settings[key] = value;
-    this.save();
   }
 
   // Daily streak methods
