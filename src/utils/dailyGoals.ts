@@ -1,3 +1,5 @@
+import { seededRandom, getDailySeed } from './daily';
+
 export interface DailyGoal {
   id: string;
   description: string;
@@ -24,28 +26,10 @@ const GOAL_TEMPLATES: GoalTemplate[] = [
 ];
 
 /**
- * Simple seeded random number generator
- */
-function seededRandom(seed: number): () => number {
-  return function() {
-    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-    return seed / 0x7fffffff;
-  };
-}
-
-/**
- * Get a seed for today's date
- */
-export function getDailyGoalSeed(): number {
-  const today = new Date();
-  return today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
-}
-
-/**
  * Generate 3 daily goals using seeded randomness
  */
 export function getDailyGoals(seed?: number): DailyGoal[] {
-  const actualSeed = seed ?? getDailyGoalSeed();
+  const actualSeed = seed ?? getDailySeed();
   const rng = seededRandom(actualSeed);
 
   // Shuffle templates
