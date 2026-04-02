@@ -1149,9 +1149,9 @@ export class GameScene extends Phaser.Scene {
         this.showGoalCompletedMessage(newGoal);
         this.storage.completeGoal(newGoal.id);
 
-        // Add bonus points
-        this.scoreManager.addChain(0); // This won't add points, we need a direct method
-        // Just show the bonus visually for now
+        // Add bonus points to score
+        this.scoreManager.addBonus(newGoal.reward);
+        this.scoreText.setText(`${this.scoreManager.score}`);
       }
     }
   }

@@ -70,6 +70,14 @@ export class ScoreManager {
     this._specialTilesUsed++;
   }
 
+  /**
+   * Add bonus points (e.g., from completed daily goals).
+   * Does not affect multiplier or tile counts.
+   */
+  addBonus(points: number): void {
+    this._score += points;
+  }
+
   endTurn(): void {
     this._multiplier = 1;
     this._turnTilesCleared = 0;
