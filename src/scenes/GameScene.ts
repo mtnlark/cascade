@@ -20,6 +20,14 @@ import {
   GRID_BACKGROUND_COLOR,
   RENDER_SCALE,
   PREVIEW_QUEUE_SIZE,
+  TIMED_MODE_DURATION,
+  DEFAULT_UNDO_COUNT,
+  UNDO_WARNING_THRESHOLD,
+  TIMER_WARNING_THRESHOLD,
+  COMBO_THRESHOLD,
+  MEGA_COMBO_THRESHOLD,
+  SCORE_MILESTONES,
+  DANGER_ZONE_ROWS,
   scaledFont,
 } from '../config';
 
@@ -55,7 +63,6 @@ export class GameScene extends Phaser.Scene {
   private dangerTween: Phaser.Tweens.Tween | null = null;
 
   // Milestone tracking
-  private readonly MILESTONES = [100, 500, 1000, 2500, 5000, 10000];
   private lastMilestoneReached: number = 0;
 
   private scoreText!: Phaser.GameObjects.Text;
@@ -76,7 +83,7 @@ export class GameScene extends Phaser.Scene {
   private matchPreviewGraphics!: Phaser.GameObjects.Graphics;
 
   // Timed mode
-  private timeRemaining: number = 120; // 2 minutes in seconds
+  private timeRemaining: number = TIMED_MODE_DURATION;
   private timerText?: Phaser.GameObjects.Text;
   private timerEvent?: Phaser.Time.TimerEvent;
   private timerWarning: boolean = false;
@@ -102,7 +109,7 @@ export class GameScene extends Phaser.Scene {
     this.tiles.clear();
 
     // Initialize limited undo (practice mode has unlimited)
-    this.undosRemaining = this.mode === 'practice' ? Infinity : 3;
+    this.undosRemaining = this.mode === 'practice' ? Infinity : DEFAULT_UNDO_COUNT;
 
     if (this.mode === 'daily') {
       this.rng = seededRandom(getDailySeed());
@@ -828,8 +835,8 @@ export class GameScene extends Phaser.Scene {
 
     // Escalating visual intensity based on multiplier
     const intensity = Math.min(multiplier, 6);
-    const glowColor = multiplier >= 5 ? 0xff6b9d : multiplier >= 3 ? 0xffd700 : 0xffffff;
-    const textColor = multiplier >= 5 ? '#ff6b9d' : multiplier >= 3 ? '#ffd700' : '#ffffff';
+    const glowColor = multiplier >= MEGA_COMBO_THRESHOLD ? 0xff6b9d : multiplier >= COMBO_THRESHOLD ? 0xffd700 : 0xffffff;
+    const textColor = multiplier >= MEGA_COMBO_THRESHOLD ? '#ff6b9d' : multiplier >= COMBO_THRESHOLD ? '#ffd700' : '#ffffff';
     const glowRadius = (40 + intensity * 10) * S;
     const glowAlpha = 0.2 + (intensity * 0.05);
 
@@ -837,14 +844,14 @@ export class GameScene extends Phaser.Scene {
     const glow = this.add.graphics();
     glow.fillStyle(glowColor, glowAlpha);
     glow.fillCircle(0, 0, glowRadius);
-    if (multiplier >= 3) {
+    if (multiplier >= COMBO_THRESHOLD) {
       glow.fillStyle(glowColor, glowAlpha * 0.5);
       glow.fillCircle(0, 0, glowRadius * 1.3);
     }
     container.add(glow);
 
-    // Add particles for 5x+ combos
-    if (multiplier >= 5) {
+    // Add particles for mega combos
+    if (multiplier >= MEGA_COMBO_THRESHOLD) {
       const particleCount = 8 + (multiplier - 4) * 4;
       for (let i = 0; i < particleCount; i++) {
         const angle = (i / particleCount) * Math.PI * 2;
@@ -883,10 +890,10 @@ export class GameScene extends Phaser.Scene {
     container.add(text);
 
     // Combo label
-    const comboLabel = multiplier >= 5 ? 'MEGA COMBO!' : multiplier >= 3 ? 'COMBO!' : 'CHAIN';
+    const comboLabel = multiplier >= MEGA_COMBO_THRESHOLD ? 'MEGA COMBO!' : multiplier >= COMBO_THRESHOLD ? 'COMBO!' : 'CHAIN';
     const subtitle = this.add.text(0, 35 * S, comboLabel, {
       fontSize: scaledFont(16 + intensity * 2),
-      color: multiplier >= 3 ? textColor : '#888888',
+      color: multiplier >= COMBO_THRESHOLD ? textColor : '#888888',
       fontStyle: 'bold',
     }).setOrigin(0.5);
     container.add(subtitle);
@@ -938,7 +945,7 @@ export class GameScene extends Phaser.Scene {
         this.undoCountText.setText(`${this.undosRemaining}`);
 
         // Flash red when running low
-        if (this.undosRemaining <= 1) {
+        if (this.undosRemaining <= UNDO_WARNING_THRESHOLD) {
           this.undoCountText.setStyle({ color: '#ff4444' });
           this.tweens.add({
             targets: this.undoCountText,
@@ -1038,7 +1045,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private startTimedModeCountdown(): void {
-    this.timeRemaining = 120; // 2 minutes
+    this.timeRemaining = TIMED_MODE_DURATION;
 
     this.timerEvent = this.time.addEvent({
       delay: 1000,
@@ -1061,7 +1068,7 @@ export class GameScene extends Phaser.Scene {
     this.timerText.setText(this.formatTime(this.timeRemaining));
 
     // Warning state at 10 seconds
-    if (this.timeRemaining <= 10 && !this.timerWarning) {
+    if (this.timeRemaining <= TIMER_WARNING_THRESHOLD && !this.timerWarning) {
       this.timerWarning = true;
       this.timerText.setStyle({ color: '#ff0000' });
 
@@ -1298,7 +1305,7 @@ export class GameScene extends Phaser.Scene {
   private checkMilestones(): void {
     const score = this.scoreManager.score;
 
-    for (const milestone of this.MILESTONES) {
+    for (const milestone of SCORE_MILESTONES) {
       if (score >= milestone && this.lastMilestoneReached < milestone) {
         this.lastMilestoneReached = milestone;
         this.showMilestoneCelebration(milestone);
@@ -1429,7 +1436,7 @@ export class GameScene extends Phaser.Scene {
     this.dangerGraphics.clear();
 
     const gridHeight = GRID_ROWS * TILE_SIZE;
-    const dangerThreshold = GRID_ROWS - 2; // 2 rows from full = danger
+    const dangerThreshold = GRID_ROWS - DANGER_ZONE_ROWS;
     let dangerColumnsCount = 0;
 
     for (let col = 0; col < GRID_COLS; col++) {

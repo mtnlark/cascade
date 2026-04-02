@@ -47,6 +47,22 @@ export const SPECIAL_TILE_RATES = {
 
 export const TIMER_TILE_DURATION = 5;
 
+// Game mode settings
+export const TIMED_MODE_DURATION = 120; // seconds
+export const DEFAULT_UNDO_COUNT = 3;
+export const UNDO_WARNING_THRESHOLD = 1;
+export const TIMER_WARNING_THRESHOLD = 10; // seconds
+
+// Combo thresholds for visual effects
+export const COMBO_THRESHOLD = 3;      // Standard combo
+export const MEGA_COMBO_THRESHOLD = 5; // Mega combo with particles
+
+// Score milestones for celebrations
+export const SCORE_MILESTONES = [100, 500, 1000, 2500, 5000, 10000] as const;
+
+// Danger zone: rows from top before column is "dangerous"
+export const DANGER_ZONE_ROWS = 2;
+
 export const BACKGROUND_COLOR = 0x1a1a2e;
 export const GRID_BACKGROUND_COLOR = 0x16213e;
 export const UI_TEXT_COLOR = '#ffffff';
