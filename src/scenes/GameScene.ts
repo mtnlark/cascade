@@ -726,6 +726,15 @@ export class GameScene extends Phaser.Scene {
       this.comboCount++;
     }
 
+    // Track special tiles BEFORE updating daily goals (using visual Tile objects, not grid data which is already cleared)
+    for (const { col, row } of chain.cleared) {
+      const key = `${col},${row}`;
+      const tile = this.tiles.get(key);
+      if (tile && tile.tileType !== 'normal') {
+        this.scoreManager.recordSpecialTile();
+      }
+    }
+
     // Update daily goals progress
     this.updateDailyGoalsProgress();
 
@@ -735,17 +744,12 @@ export class GameScene extends Phaser.Scene {
     // Apply screen shake based on clear type and size
     this.applyScreenShake(chain.cleared);
 
-    // Animate cleared tiles and track special tiles
+    // Animate cleared tiles
     let clearedCount = 0;
     chain.cleared.forEach(({ col, row }) => {
       const key = `${col},${row}`;
       const tile = this.tiles.get(key);
       if (tile) {
-        // Track special tile usage for daily goals and achievements
-        const specialTypes = ['bomb', 'colorBomb', 'rainbow', 'timer', 'stone'];
-        if (specialTypes.includes(tile.tileType)) {
-          this.scoreManager.recordSpecialTile();
-        }
         tile.animateClear(() => {
           clearedCount++;
           if (clearedCount === chain.cleared.length) {
