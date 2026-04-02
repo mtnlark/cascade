@@ -1,4 +1,5 @@
 import { seededRandom, getDailySeed } from './daily';
+export { getTodayDateString } from './date';
 
 export interface DailyGoal {
   id: string;
@@ -60,13 +61,6 @@ function roundToNice(n: number): number {
   if (n <= 10) return n;
   if (n <= 50) return Math.round(n / 5) * 5;
   return Math.round(n / 10) * 10;
-}
-
-/**
- * Get today's date as YYYY-MM-DD string
- */
-export function getTodayDateString(): string {
-  return new Date().toISOString().split('T')[0];
 }
 
 /**

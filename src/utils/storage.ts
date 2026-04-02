@@ -1,3 +1,5 @@
+import { getTodayDateString, getYesterdayDateString } from './date';
+
 export type GameMode = 'endless' | 'daily' | 'practice' | 'challenge' | 'timed';
 
 interface DailyStreak {
@@ -101,19 +103,9 @@ export class Storage {
   }
 
   // Daily streak methods
-  private getTodayDate(): string {
-    return new Date().toISOString().split('T')[0];
-  }
-
-  private getYesterdayDate(): string {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    return yesterday.toISOString().split('T')[0];
-  }
-
   getStreak(): DailyStreak {
-    const today = this.getTodayDate();
-    const yesterday = this.getYesterdayDate();
+    const today = getTodayDateString();
+    const yesterday = getYesterdayDateString();
     const lastPlayed = this.data.daily.lastPlayedDate;
 
     // If last played was before yesterday, streak is broken
@@ -129,8 +121,8 @@ export class Storage {
   }
 
   recordDailyPlay(): { streakIncreased: boolean; newStreak: number } {
-    const today = this.getTodayDate();
-    const yesterday = this.getYesterdayDate();
+    const today = getTodayDateString();
+    const yesterday = getYesterdayDateString();
     const lastPlayed = this.data.daily.lastPlayedDate;
 
     let streakIncreased = false;
@@ -162,11 +154,11 @@ export class Storage {
   }
 
   isStreakAtRisk(): boolean {
-    const today = this.getTodayDate();
+    const today = getTodayDateString();
     const lastPlayed = this.data.daily.lastPlayedDate;
 
     // Streak is at risk if we played yesterday but not today
-    return lastPlayed === this.getYesterdayDate() && this.data.daily.currentStreak > 0;
+    return lastPlayed === getYesterdayDateString() && this.data.daily.currentStreak > 0;
   }
 
   // Challenge methods
@@ -255,7 +247,7 @@ export class Storage {
 
   // Daily goals methods
   getDailyGoalsData(): DailyGoalsData {
-    const today = this.getTodayDate();
+    const today = getTodayDateString();
 
     // Reset if it's a new day
     if (this.data.dailyGoals.date !== today) {
@@ -298,7 +290,7 @@ export class Storage {
   }
 
   getCompletedGoalCount(): number {
-    const today = this.getTodayDate();
+    const today = getTodayDateString();
     if (this.data.dailyGoals.date !== today) {
       return 0;
     }

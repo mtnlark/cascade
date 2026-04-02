@@ -3,6 +3,7 @@ import { UI_TEXT_COLOR, COLORS, RENDER_SCALE, scaledFont } from '../config';
 import { Storage, GameMode } from '../utils/storage';
 import { generateShareText, shareResult } from '../utils/share';
 import { checkAchievements, getAchievement, GameStats } from '../game/achievements';
+import { getTodayDateString } from '../utils/date';
 
 const S = RENDER_SCALE;
 
@@ -503,7 +504,7 @@ export class GameOverScene extends Phaser.Scene {
     });
 
     hitArea.on('pointerdown', async () => {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getTodayDateString();
       const shareText = generateShareText(score, today, {
         totalTilesCleared: stats.totalTilesCleared,
         longestChain: stats.longestChain,

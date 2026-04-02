@@ -1,21 +1,7 @@
-export function getDailySeed(): number {
-  const now = new Date();
-  // Use 1-indexed month and zero-pad for consistent YYYY-MM-DD format
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, '0');
-  const day = String(now.getDate()).padStart(2, '0');
-  const dateString = `${year}-${month}-${day}`;
-  return hashString(dateString);
-}
+import { getTodayDateString, hashString } from './date';
 
-function hashString(str: string): number {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit integer
-  }
-  return Math.abs(hash);
+export function getDailySeed(): number {
+  return hashString(getTodayDateString());
 }
 
 // Mulberry32 PRNG - simple and fast
