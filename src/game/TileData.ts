@@ -1,8 +1,11 @@
-export type TileType = 'normal' | 'rainbow' | 'bomb' | 'colorBomb';
+export type TileType = 'normal' | 'rainbow' | 'bomb' | 'colorBomb' | 'stone' | 'timer';
 
 export interface TileData {
   colorIndex: number;
   type: TileType;
+  health?: number;           // For stone tiles (starts at 2)
+  turnsRemaining?: number;   // For timer tiles
+  isLocked?: boolean;        // For locked/frozen tiles
 }
 
 export function isSpecialTile(type: TileType): boolean {
@@ -23,4 +26,16 @@ export function createBombTile(colorIndex: number): TileData {
 
 export function createColorBombTile(colorIndex: number): TileData {
   return { colorIndex, type: 'colorBomb' };
+}
+
+export function createStoneTile(colorIndex: number): TileData {
+  return { colorIndex, type: 'stone', health: 2 };
+}
+
+export function createTimerTile(colorIndex: number, turns: number = 5): TileData {
+  return { colorIndex, type: 'timer', turnsRemaining: turns };
+}
+
+export function lockTile(tile: TileData): TileData {
+  return { ...tile, isLocked: true };
 }

@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { Grid } from '../game/Grid';
 import { Tile } from '../game/Tile';
 import { TileQueue } from '../game/TileQueue';
-import { TileData } from '../game/TileData';
+import { TileData, createNormalTile, lockTile } from '../game/TileData';
 import { ScoreManager } from '../game/ScoreManager';
 import { Storage } from '../utils/storage';
 import {
@@ -31,91 +31,133 @@ interface Challenge {
     target: number;
   };
   colorCount: number;
-  // Optional: Starting grid configuration
-  startingGrid?: Array<{ col: number; row: number; colorIndex: number }>;
+  // Optional: Starting grid configuration with full tile data
+  startingGrid?: Array<{ col: number; row: number; tile: TileData }>;
 }
 
-// 10 Initial Challenges
+// 10 Initial Challenges - balanced for achievability
 const CHALLENGES: Challenge[] = [
   {
     id: 1,
     name: 'Getting Started',
-    description: 'Score 100 points',
-    moves: 8,
-    objective: { type: 'score', target: 100 },
+    description: 'Score 50 points',
+    moves: 15,
+    objective: { type: 'score', target: 50 },
     colorCount: 3,
   },
   {
     id: 2,
     name: 'Tile Collector',
-    description: 'Clear 15 tiles',
-    moves: 6,
-    objective: { type: 'tiles', target: 15 },
+    description: 'Clear 10 tiles',
+    moves: 12,
+    objective: { type: 'tiles', target: 10 },
     colorCount: 3,
   },
   {
     id: 3,
-    name: 'Chain Reaction',
-    description: 'Score 200 points',
-    moves: 8,
-    objective: { type: 'score', target: 200 },
+    name: 'Keep Going',
+    description: 'Score 100 points',
+    moves: 18,
+    objective: { type: 'score', target: 100 },
     colorCount: 3,
   },
   {
     id: 4,
-    name: 'Color Master',
-    description: 'Clear 25 tiles',
-    moves: 8,
-    objective: { type: 'tiles', target: 25 },
-    colorCount: 4,
+    name: 'Clearing House',
+    description: 'Clear 20 tiles',
+    moves: 15,
+    objective: { type: 'tiles', target: 20 },
+    colorCount: 3,
   },
   {
     id: 5,
     name: 'Combo Starter',
-    description: 'Get a 3x combo',
-    moves: 10,
-    objective: { type: 'combos', target: 3 },
+    description: 'Get a 2x combo',
+    moves: 15,
+    objective: { type: 'combos', target: 2 },
     colorCount: 3,
   },
   {
     id: 6,
-    name: 'Explosive Entry',
-    description: 'Trigger 2 bombs',
-    moves: 12,
-    objective: { type: 'bombs', target: 2 },
+    name: 'Color Mixer',
+    description: 'Clear 25 tiles',
+    moves: 18,
+    objective: { type: 'tiles', target: 25 },
     colorCount: 4,
   },
   {
     id: 7,
     name: 'Point Pusher',
-    description: 'Score 400 points',
-    moves: 10,
-    objective: { type: 'score', target: 400 },
+    description: 'Score 150 points',
+    moves: 20,
+    objective: { type: 'score', target: 150 },
     colorCount: 4,
   },
   {
     id: 8,
-    name: 'Tile Tornado',
-    description: 'Clear 40 tiles',
-    moves: 10,
-    objective: { type: 'tiles', target: 40 },
-    colorCount: 4,
+    name: 'Chain Reaction',
+    description: 'Get a 3x combo',
+    moves: 20,
+    objective: { type: 'combos', target: 3 },
+    colorCount: 3,
   },
   {
     id: 9,
-    name: 'Combo King',
-    description: 'Get a 5x combo',
-    moves: 12,
-    objective: { type: 'combos', target: 5 },
+    name: 'Tile Master',
+    description: 'Clear 35 tiles',
+    moves: 20,
+    objective: { type: 'tiles', target: 35 },
     colorCount: 4,
   },
   {
     id: 10,
-    name: 'Grand Finale',
-    description: 'Score 800 points',
-    moves: 12,
-    objective: { type: 'score', target: 800 },
-    colorCount: 5,
+    name: 'High Scorer',
+    description: 'Score 250 points',
+    moves: 25,
+    objective: { type: 'score', target: 250 },
+    colorCount: 4,
+  },
+  // New puzzle challenges with starting grids
+  {
+    id: 11,
+    name: 'Frozen Start',
+    description: 'Clear all tiles',
+    moves: 8,
+    objective: { type: 'tiles', target: 12 },
+    colorCount: 3,
+    startingGrid: [
+      // Bottom row - locked tiles
+      { col: 1, row: 11, tile: lockTile(createNormalTile(0)) },
+      { col: 2, row: 11, tile: lockTile(createNormalTile(1)) },
+      { col: 3, row: 11, tile: lockTile(createNormalTile(0)) },
+      { col: 4, row: 11, tile: lockTile(createNormalTile(1)) },
+      // Row above - normal tiles to unlock them
+      { col: 1, row: 10, tile: createNormalTile(0) },
+      { col: 2, row: 10, tile: createNormalTile(0) },
+      { col: 3, row: 10, tile: createNormalTile(0) },
+      { col: 4, row: 10, tile: createNormalTile(1) },
+    ],
+  },
+  {
+    id: 12,
+    name: 'Strategic Setup',
+    description: 'Get a 4x combo',
+    moves: 6,
+    objective: { type: 'combos', target: 4 },
+    colorCount: 3,
+    startingGrid: [
+      // Create a setup that rewards careful placement
+      { col: 0, row: 11, tile: createNormalTile(0) },
+      { col: 1, row: 11, tile: createNormalTile(0) },
+      { col: 2, row: 11, tile: createNormalTile(1) },
+      { col: 3, row: 11, tile: createNormalTile(1) },
+      { col: 4, row: 11, tile: createNormalTile(2) },
+      { col: 5, row: 11, tile: createNormalTile(2) },
+      { col: 0, row: 10, tile: createNormalTile(1) },
+      { col: 1, row: 10, tile: createNormalTile(2) },
+      { col: 4, row: 10, tile: createNormalTile(0) },
+      { col: 5, row: 10, tile: createNormalTile(1) },
+    ],
   },
 ];
 
@@ -177,6 +219,11 @@ export class ChallengeScene extends Phaser.Scene {
     this.maxCombo = 0;
 
     this.tileQueue = new TileQueue(5, this.challenge.colorCount);
+
+    // Load starting grid if defined
+    if (this.challenge.startingGrid) {
+      this.grid.loadLayout(this.challenge.startingGrid);
+    }
 
     const { width, height } = this.cameras.main;
 
@@ -257,6 +304,11 @@ export class ChallengeScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     this.renderPreviewQueue();
+
+    // Render starting grid if one was loaded
+    if (this.challenge.startingGrid) {
+      this.rebuildTilesFromGrid();
+    }
 
     // Back button
     const backBtn = this.add.text(30 * S, height - 30 * S, '< BACK', {
@@ -391,7 +443,7 @@ export class ChallengeScene extends Phaser.Scene {
       });
     }
 
-    const tile = new Tile(this, col, 0, tileData.colorIndex, tileData.type, this.gridX, this.gridY);
+    const tile = new Tile(this, col, 0, tileData.colorIndex, tileData.type, this.gridX, this.gridY, tileData);
     this.tiles.set(`${col},${landedRow}`, tile);
 
     tile.animateDrop(landedRow, this.gridY, () => {
@@ -414,7 +466,7 @@ export class ChallengeScene extends Phaser.Scene {
   }
 
   private animateChains(
-    chains: Array<{ cleared: Array<{ col: number; row: number }>; fallen: Array<{ col: number; fromRow: number; toRow: number }> }>,
+    chains: Array<{ cleared: Array<{ col: number; row: number }>; fallen: Array<{ col: number; fromRow: number; toRow: number }>; damaged?: Array<{ col: number; row: number }> }>,
     index: number
   ): void {
     if (index >= chains.length) {
@@ -441,6 +493,30 @@ export class ChallengeScene extends Phaser.Scene {
       }
     });
 
+    // Unlock adjacent tiles
+    const unlocked = this.grid.unlockAdjacentTo(chain.cleared);
+    for (const { col, row } of unlocked) {
+      const key = `${col},${row}`;
+      const tile = this.tiles.get(key);
+      if (tile) {
+        tile.unlock();
+      }
+    }
+
+    // Handle damaged stone tiles
+    if (chain.damaged && chain.damaged.length > 0) {
+      for (const { col, row } of chain.damaged) {
+        const key = `${col},${row}`;
+        const tile = this.tiles.get(key);
+        if (tile) {
+          const cellData = this.grid.getCell(col, row);
+          if (cellData && cellData.health !== undefined) {
+            tile.updateHealth(cellData.health);
+          }
+        }
+      }
+    }
+
     // Update progress display
     this.progressText.setText(this.getProgressText());
 
@@ -462,6 +538,23 @@ export class ChallengeScene extends Phaser.Scene {
         this.tiles.delete(key);
       }
     });
+  }
+
+  private rebuildTilesFromGrid(): void {
+    // Destroy all current tiles
+    this.tiles.forEach(tile => tile.destroy());
+    this.tiles.clear();
+
+    // Recreate from grid state
+    for (let col = 0; col < GRID_COLS; col++) {
+      for (let row = 0; row < GRID_ROWS; row++) {
+        const cellData = this.grid.getCell(col, row);
+        if (cellData !== null) {
+          const tile = new Tile(this, col, row, cellData.colorIndex, cellData.type, this.gridX, this.gridY, cellData);
+          this.tiles.set(`${col},${row}`, tile);
+        }
+      }
+    }
   }
 
   private updateFallenTiles(fallen: Array<{ col: number; fromRow: number; toRow: number }>): void {

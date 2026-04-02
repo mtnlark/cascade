@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { UI_TEXT_COLOR, COLORS, RENDER_SCALE, scaledFont } from '../config';
-import { GameMode } from '../utils/storage';
+import { Storage, GameMode } from '../utils/storage';
+import { generateShareText, shareResult } from '../utils/share';
+import { checkAchievements, getAchievement, GameStats } from '../game/achievements';
 
 const S = RENDER_SCALE;
 
@@ -20,13 +22,21 @@ interface GameOverData {
 }
 
 export class GameOverScene extends Phaser.Scene {
+  private storage!: Storage;
+
   constructor() {
     super({ key: 'GameOverScene' });
   }
 
   create(data: GameOverData): void {
+    this.storage = new Storage();
     const { width, height } = this.cameras.main;
     const { score, mode, isHighScore, stats } = data;
+
+    // Check for new achievements
+    if (stats) {
+      this.checkAndShowAchievements(score, mode, stats);
+    }
 
     // Falling particles in background
     this.createFallingTiles();
@@ -131,8 +141,15 @@ export class GameOverScene extends Phaser.Scene {
       this.createStatsPanel(width / 2, isHighScore ? 400 * S : 340 * S, stats);
     }
 
+    // Share button for daily mode
+    let buttonOffset = 0;
+    if (mode === 'daily' && stats) {
+      buttonOffset = 60 * S;
+      this.createShareButton(width / 2, (stats ? 530 * S : 430 * S), score, stats);
+    }
+
     // Buttons (positioned lower when stats are shown)
-    const buttonBaseY = stats ? 530 * S : 430 * S;
+    const buttonBaseY = stats ? 530 * S + buttonOffset : 430 * S;
     this.createButton(width / 2, buttonBaseY, 'PLAY AGAIN', () => {
       this.scene.start('GameScene', { mode });
     }, true);
@@ -321,6 +338,203 @@ export class GameOverScene extends Phaser.Scene {
       scaleY: 1,
       duration: 300,
       delay: primary ? 800 : 900,
+      ease: 'Back.easeOut',
+    });
+  }
+
+  private checkAndShowAchievements(score: number, mode: GameMode, stats: SessionStats): void {
+    const gameStats: GameStats = {
+      score,
+      maxCombo: stats.maxMultiplier,
+      tilesCleared: stats.totalTilesCleared,
+      longestChain: stats.longestChain,
+      specialTilesUsed: stats.specialTilesUsed,
+      mode,
+    };
+
+    const streak = this.storage.getStreak();
+    const challengeProgress = this.storage.getChallengeProgress();
+
+    const newlyUnlocked = checkAchievements(
+      gameStats,
+      { currentStreak: streak.currentStreak },
+      { completedCount: challengeProgress.completed.length, totalChallenges: 10 },
+      this.storage.getUnlockedAchievements()
+    );
+
+    // Save new achievements
+    if (newlyUnlocked.length > 0) {
+      this.storage.unlockAchievements(newlyUnlocked);
+
+      // Show achievement popup with delay
+      this.time.delayedCall(1200, () => {
+        this.showAchievementPopups(newlyUnlocked);
+      });
+    }
+  }
+
+  private showAchievementPopups(achievementIds: string[]): void {
+    const { width, height } = this.cameras.main;
+
+    // Show each achievement with staggered timing
+    achievementIds.forEach((id, index) => {
+      const achievement = getAchievement(id);
+      if (!achievement) return;
+
+      this.time.delayedCall(index * 800, () => {
+        this.showSingleAchievementPopup(achievement);
+      });
+    });
+  }
+
+  private showSingleAchievementPopup(achievement: { id: string; name: string; icon: string; description: string }): void {
+    const { width, height } = this.cameras.main;
+
+    const container = this.add.container(width / 2, -100 * S);
+    container.setDepth(200);
+
+    // Background
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1e3a5f, 0.95);
+    bg.fillRoundedRect(-160 * S, -40 * S, 320 * S, 80 * S, 15 * S);
+    bg.lineStyle(3 * S, 0xffd700, 1);
+    bg.strokeRoundedRect(-160 * S, -40 * S, 320 * S, 80 * S, 15 * S);
+    container.add(bg);
+
+    // Achievement unlocked label
+    const label = this.add.text(0, -25 * S, '🏆 ACHIEVEMENT UNLOCKED!', {
+      fontSize: scaledFont(12),
+      color: '#ffd700',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    container.add(label);
+
+    // Icon and name
+    const icon = this.add.text(-120 * S, 10 * S, achievement.icon, {
+      fontSize: scaledFont(32),
+    }).setOrigin(0.5);
+    container.add(icon);
+
+    const name = this.add.text(-70 * S, 5 * S, achievement.name, {
+      fontSize: scaledFont(16),
+      color: '#ffffff',
+      fontStyle: 'bold',
+    }).setOrigin(0, 0.5);
+    container.add(name);
+
+    const desc = this.add.text(-70 * S, 25 * S, achievement.description, {
+      fontSize: scaledFont(11),
+      color: '#aaaaaa',
+    }).setOrigin(0, 0.5);
+    container.add(desc);
+
+    // Animate in
+    this.tweens.add({
+      targets: container,
+      y: 50 * S,
+      duration: 400,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        // Hold, then animate out
+        this.time.delayedCall(2000, () => {
+          this.tweens.add({
+            targets: container,
+            y: -100 * S,
+            alpha: 0,
+            duration: 300,
+            ease: 'Power2',
+            onComplete: () => container.destroy(),
+          });
+        });
+      },
+    });
+  }
+
+  private createShareButton(x: number, y: number, score: number, stats: SessionStats): void {
+    const btnWidth = 160 * S;
+    const btnHeight = 40 * S;
+    const radius = 10 * S;
+
+    const container = this.add.container(x, y);
+
+    // Background
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1da1f2, 0.9); // Twitter blue-ish
+    bg.fillRoundedRect(-btnWidth / 2, -btnHeight / 2, btnWidth, btnHeight, radius);
+    bg.lineStyle(2 * S, 0xffffff, 0.3);
+    bg.strokeRoundedRect(-btnWidth / 2, -btnHeight / 2, btnWidth, btnHeight, radius);
+    container.add(bg);
+
+    // Share icon and text
+    const text = this.add.text(0, 0, '📤 SHARE', {
+      fontSize: scaledFont(18),
+      color: '#ffffff',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    container.add(text);
+
+    // Toast message (hidden initially)
+    const toast = this.add.text(x, y + 35 * S, '', {
+      fontSize: scaledFont(12),
+      color: '#7fff00',
+    }).setOrigin(0.5).setAlpha(0);
+
+    // Hit area
+    const hitArea = this.add.rectangle(0, 0, btnWidth, btnHeight, 0x000000, 0);
+    hitArea.setInteractive({ useHandCursor: true });
+    container.add(hitArea);
+
+    hitArea.on('pointerover', () => {
+      this.tweens.add({
+        targets: container,
+        scaleX: 1.05,
+        scaleY: 1.05,
+        duration: 100,
+      });
+    });
+
+    hitArea.on('pointerout', () => {
+      this.tweens.add({
+        targets: container,
+        scaleX: 1,
+        scaleY: 1,
+        duration: 100,
+      });
+    });
+
+    hitArea.on('pointerdown', async () => {
+      const today = new Date().toISOString().split('T')[0];
+      const shareText = generateShareText(score, today, {
+        totalTilesCleared: stats.totalTilesCleared,
+        longestChain: stats.longestChain,
+        maxMultiplier: stats.maxMultiplier,
+      });
+
+      const result = await shareResult(shareText);
+
+      if (result.success) {
+        const message = result.method === 'clipboard' ? 'Copied!' : 'Shared!';
+        toast.setText(message);
+        toast.setAlpha(1);
+
+        this.tweens.add({
+          targets: toast,
+          alpha: 0,
+          y: y + 25 * S,
+          delay: 1500,
+          duration: 300,
+        });
+      }
+    });
+
+    // Entrance animation
+    container.setScale(0);
+    this.tweens.add({
+      targets: container,
+      scaleX: 1,
+      scaleY: 1,
+      duration: 300,
+      delay: 700,
       ease: 'Back.easeOut',
     });
   }

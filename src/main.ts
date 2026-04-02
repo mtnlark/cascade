@@ -5,6 +5,7 @@ import { GameScene } from './scenes/GameScene';
 import { GameOverScene } from './scenes/GameOverScene';
 import { ChallengeScene } from './scenes/ChallengeScene';
 import { ChallengeSelectScene } from './scenes/ChallengeSelectScene';
+import { AchievementsScene } from './scenes/AchievementsScene';
 import { BACKGROUND_COLOR } from './config';
 
 /*
@@ -32,7 +33,7 @@ const config: Phaser.Types.Core.GameConfig = {
     antialias: true,
     antialiasGL: true,
   },
-  scene: [BootScene, MenuScene, GameScene, GameOverScene, ChallengeScene, ChallengeSelectScene],
+  scene: [BootScene, MenuScene, GameScene, GameOverScene, ChallengeScene, ChallengeSelectScene, AchievementsScene],
 };
 
 new Phaser.Game(config);

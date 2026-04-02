@@ -41,7 +41,11 @@ export const SPECIAL_TILE_RATES = {
   rainbow: 0.05,
   bomb: 0.05,
   colorBomb: 0.05,
+  stone: 0.03,
+  timer: 0.02,
 } as const;
+
+export const TIMER_TILE_DURATION = 5;
 
 export const BACKGROUND_COLOR = 0x1a1a2e;
 export const GRID_BACKGROUND_COLOR = 0x16213e;

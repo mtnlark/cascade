@@ -16,6 +16,7 @@ export interface FallenTile {
 export interface CascadeChain {
   cleared: Position[];
   fallen: FallenTile[];
+  damaged: Position[];  // Stone tiles that were hit but not destroyed
 }
 
 export interface CascadeResult {
@@ -109,6 +110,9 @@ export class Grid {
 
       const cell = this.cells[col][row];
       if (cell === null) continue;
+
+      // Skip locked tiles - they can't be matched
+      if (cell.isLocked) continue;
 
       // Rainbow matches any color, otherwise must match target
       const matches = cell.type === 'rainbow' || cell.colorIndex === targetColor;
@@ -206,24 +210,93 @@ export class Grid {
       const matches = this.findAllMatches(minSize);
       if (matches.length === 0) break;
 
-      const allCleared: Position[] = matches.flat();
+      const allMatched: Position[] = matches.flat();
 
       // Process special tiles to get additional clears
-      const specialClears = this.processSpecialTiles(allCleared);
-      const combinedClears = this.mergePositions(allCleared, specialClears);
+      const specialClears = this.processSpecialTiles(allMatched);
+      const combinedMatches = this.mergePositions(allMatched, specialClears);
 
-      totalCleared += combinedClears.length;
+      // Process stone tiles - separate into cleared and damaged
+      const { cleared, damaged } = this.processStones(combinedMatches);
 
-      this.clearGroup(combinedClears);
+      totalCleared += cleared.length;
+
+      this.clearGroup(cleared);
       const fallen = this.applyGravity();
 
       chains.push({
-        cleared: combinedClears,
+        cleared,
         fallen,
+        damaged,
       });
     }
 
     return { chains, totalCleared };
+  }
+
+  /**
+   * Process stone tiles in matched positions.
+   * Returns positions to clear and positions that were damaged.
+   */
+  private processStones(positions: Position[]): { cleared: Position[]; damaged: Position[] } {
+    const cleared: Position[] = [];
+    const damaged: Position[] = [];
+
+    for (const pos of positions) {
+      const cell = this.getCell(pos.col, pos.row);
+      if (!cell) continue;
+
+      if (cell.type === 'stone' && cell.health !== undefined && cell.health > 1) {
+        // Damage the stone but don't clear it
+        cell.health--;
+        damaged.push(pos);
+      } else {
+        // Clear this tile
+        cleared.push(pos);
+      }
+    }
+
+    return { cleared, damaged };
+  }
+
+  /**
+   * Tick all timer tiles, decrementing their counters.
+   * Returns positions of tiles that expired (reached 0).
+   */
+  tickTimers(): Position[] {
+    const expired: Position[] = [];
+
+    for (let col = 0; col < this.cols; col++) {
+      for (let row = 0; row < this.rows; row++) {
+        const cell = this.cells[col][row];
+        if (cell && cell.type === 'timer' && cell.turnsRemaining !== undefined) {
+          cell.turnsRemaining--;
+          if (cell.turnsRemaining <= 0) {
+            expired.push({ col, row });
+          }
+        }
+      }
+    }
+
+    return expired;
+  }
+
+  /**
+   * Get all timer tiles currently on the grid.
+   */
+  getTimerTiles(): Array<{ col: number; row: number; turnsRemaining: number }> {
+    const timers: Array<{ col: number; row: number; turnsRemaining: number }> = [];
+
+    for (let col = 0; col < this.cols; col++) {
+      for (let row = 0; row < this.rows; row++) {
+        const cell = this.cells[col][row];
+        if (cell && cell.type === 'timer' && cell.turnsRemaining !== undefined) {
+          timers.push({ col, row, turnsRemaining: cell.turnsRemaining });
+        }
+      }
+    }
+
+    return timers;
   }
 
   private processSpecialTiles(positions: Position[]): Position[] {
@@ -362,5 +435,110 @@ export class Grid {
 
   hasSavedState(): boolean {
     return this.savedState !== null;
+  }
+
+  /**
+   * Simulates dropping a tile and returns what would match without modifying state.
+   * Used for match preview on hover.
+   */
+  simulateDrop(col: number, tile: TileData): { row: number; matches: Position[] } | null {
+    if (!this.canDropInColumn(col)) {
+      return null;
+    }
+
+    // Find where the tile would land
+    let landingRow = -1;
+    for (let row = this.rows - 1; row >= 0; row--) {
+      if (this.cells[col][row] === null) {
+        landingRow = row;
+        break;
+      }
+    }
+
+    if (landingRow === -1) {
+      return null;
+    }
+
+    // Temporarily place the tile
+    this.cells[col][landingRow] = tile;
+
+    // Find what would match
+    const group = this.findConnectedGroup(col, landingRow);
+
+    // Remove the temporary tile
+    this.cells[col][landingRow] = null;
+
+    // Only return if it would form a valid match
+    if (group.length >= 3) {
+      return { row: landingRow, matches: group };
+    }
+
+    return { row: landingRow, matches: [] };
+  }
+
+  /**
+   * Load a predefined layout of tiles.
+   * Used for challenge mode starting grids.
+   */
+  loadLayout(layout: Array<{ col: number; row: number; tile: TileData }>): void {
+    // Clear existing grid
+    this.cells = this.createEmptyGrid();
+
+    // Place tiles from layout
+    for (const { col, row, tile } of layout) {
+      if (col >= 0 && col < this.cols && row >= 0 && row < this.rows) {
+        this.cells[col][row] = { ...tile };
+      }
+    }
+  }
+
+  /**
+   * Unlock tiles adjacent to the given positions.
+   * Called after clearing tiles to unlock frozen neighbors.
+   */
+  unlockAdjacentTo(positions: Position[]): Position[] {
+    const unlocked: Position[] = [];
+    const checked = new Set<string>();
+
+    for (const { col, row } of positions) {
+      const neighbors = [
+        { col: col - 1, row },
+        { col: col + 1, row },
+        { col, row: row - 1 },
+        { col, row: row + 1 },
+      ];
+
+      for (const pos of neighbors) {
+        const key = `${pos.col},${pos.row}`;
+        if (checked.has(key)) continue;
+        checked.add(key);
+
+        const cell = this.getCell(pos.col, pos.row);
+        if (cell && cell.isLocked) {
+          cell.isLocked = false;
+          unlocked.push(pos);
+        }
+      }
+    }
+
+    return unlocked;
+  }
+
+  /**
+   * Get all locked tiles on the grid.
+   */
+  getLockedTiles(): Position[] {
+    const locked: Position[] = [];
+
+    for (let col = 0; col < this.cols; col++) {
+      for (let row = 0; row < this.rows; row++) {
+        const cell = this.cells[col][row];
+        if (cell && cell.isLocked) {
+          locked.push({ col, row });
+        }
+      }
+    }
+
+    return locked;
   }
 }

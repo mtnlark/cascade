@@ -1,4 +1,4 @@
-export type GameMode = 'endless' | 'daily' | 'practice' | 'challenge';
+export type GameMode = 'endless' | 'daily' | 'practice' | 'challenge' | 'timed';
 
 interface DailyStreak {
   currentStreak: number;
@@ -11,6 +11,17 @@ interface ChallengeProgress {
   stars: Record<number, number>; // Challenge ID -> stars earned (1-3)
 }
 
+interface AchievementData {
+  unlocked: string[];  // Array of unlocked achievement IDs
+  unlockedAt: Record<string, string>;  // Achievement ID -> ISO date string
+}
+
+interface DailyGoalsData {
+  date: string;  // YYYY-MM-DD
+  completed: string[];  // Array of completed goal IDs
+  progress: Record<string, number>;  // Goal ID -> progress
+}
+
 interface StorageData {
   highScores: Record<GameMode, number>;
   settings: {
@@ -18,6 +29,8 @@ interface StorageData {
   };
   daily: DailyStreak;
   challenges: ChallengeProgress;
+  achievements: AchievementData;
+  dailyGoals: DailyGoalsData;
 }
 
 const STORAGE_KEY = 'cascade_data';
@@ -28,6 +41,7 @@ const defaultData: StorageData = {
     daily: 0,
     practice: 0,
     challenge: 0,
+    timed: 0,
   },
   settings: {
     crtFilter: false,
@@ -40,6 +54,15 @@ const defaultData: StorageData = {
   challenges: {
     completed: [],
     stars: {},
+  },
+  achievements: {
+    unlocked: [],
+    unlockedAt: {},
+  },
+  dailyGoals: {
+    date: '',
+    completed: [],
+    progress: {},
   },
 };
 
@@ -202,5 +225,103 @@ export class Storage {
 
   getTotalStars(): number {
     return Object.values(this.data.challenges.stars).reduce((sum, stars) => sum + stars, 0);
+  }
+
+  // Achievement methods
+  getUnlockedAchievements(): string[] {
+    return [...this.data.achievements.unlocked];
+  }
+
+  isAchievementUnlocked(id: string): boolean {
+    return this.data.achievements.unlocked.includes(id);
+  }
+
+  unlockAchievement(id: string): boolean {
+    if (this.data.achievements.unlocked.includes(id)) {
+      return false; // Already unlocked
+    }
+
+    this.data.achievements.unlocked.push(id);
+    this.data.achievements.unlockedAt[id] = new Date().toISOString();
+    this.save();
+    return true;
+  }
+
+  unlockAchievements(ids: string[]): string[] {
+    const newlyUnlocked: string[] = [];
+
+    for (const id of ids) {
+      if (!this.data.achievements.unlocked.includes(id)) {
+        this.data.achievements.unlocked.push(id);
+        this.data.achievements.unlockedAt[id] = new Date().toISOString();
+        newlyUnlocked.push(id);
+      }
+    }
+
+    if (newlyUnlocked.length > 0) {
+      this.save();
+    }
+
+    return newlyUnlocked;
+  }
+
+  getAchievementUnlockDate(id: string): string | null {
+    return this.data.achievements.unlockedAt[id] || null;
+  }
+
+  getUnlockedAchievementCount(): number {
+    return this.data.achievements.unlocked.length;
+  }
+
+  // Daily goals methods
+  getDailyGoalsData(): DailyGoalsData {
+    const today = this.getTodayDate();
+
+    // Reset if it's a new day
+    if (this.data.dailyGoals.date !== today) {
+      this.data.dailyGoals = {
+        date: today,
+        completed: [],
+        progress: {},
+      };
+      this.save();
+    }
+
+    return { ...this.data.dailyGoals };
+  }
+
+  isGoalCompleted(goalId: string): boolean {
+    return this.data.dailyGoals.completed.includes(goalId);
+  }
+
+  getGoalProgress(goalId: string): number {
+    return this.data.dailyGoals.progress[goalId] || 0;
+  }
+
+  updateGoalProgress(goalId: string, progress: number): boolean {
+    const wasCompleted = this.isGoalCompleted(goalId);
+
+    this.data.dailyGoals.progress[goalId] = progress;
+    this.save();
+
+    return !wasCompleted;
+  }
+
+  completeGoal(goalId: string): boolean {
+    if (this.data.dailyGoals.completed.includes(goalId)) {
+      return false;
+    }
+
+    this.data.dailyGoals.completed.push(goalId);
+    this.save();
+    return true;
+  }
+
+  getCompletedGoalCount(): number {
+    const today = this.getTodayDate();
+    if (this.data.dailyGoals.date !== today) {
+      return 0;
+    }
+    return this.data.dailyGoals.completed.length;
   }
 }

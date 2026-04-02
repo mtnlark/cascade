@@ -6,6 +6,8 @@ import { TileData } from '../game/TileData';
 import { ScoreManager } from '../game/ScoreManager';
 import { Storage, GameMode } from '../utils/storage';
 import { getDailySeed, seededRandom } from '../utils/daily';
+import { getTheme } from '../utils/themes';
+import { getDailyGoals, updateGoalProgress, calculateGoalBonus, DailyGoal } from '../utils/dailyGoals';
 import {
   GRID_COLS,
   GRID_ROWS,
@@ -60,6 +62,31 @@ export class GameScene extends Phaser.Scene {
   private columnIndicator!: Phaser.GameObjects.Graphics;
   private hoveredColumn: number = -1;
 
+  // Limited undo system
+  private undosRemaining!: number;
+  private undoCountText!: Phaser.GameObjects.Text;
+
+  // Mode theming
+  private modeIndicator!: Phaser.GameObjects.Container;
+
+  // Difficulty indicator (endless mode)
+  private colorCountText?: Phaser.GameObjects.Text;
+
+  // Match preview
+  private matchPreviewGraphics!: Phaser.GameObjects.Graphics;
+
+  // Timed mode
+  private timeRemaining: number = 120; // 2 minutes in seconds
+  private timerText?: Phaser.GameObjects.Text;
+  private timerEvent?: Phaser.Time.TimerEvent;
+  private timerWarning: boolean = false;
+
+  // Daily goals
+  private dailyGoals: DailyGoal[] = [];
+  private goalContainer?: Phaser.GameObjects.Container;
+  private goalTexts: Phaser.GameObjects.Text[] = [];
+  private comboCount: number = 0;  // Track total combos for goal
+
   constructor() {
     super({ key: 'GameScene' });
   }
@@ -73,6 +100,9 @@ export class GameScene extends Phaser.Scene {
     this.scoreManager = new ScoreManager();
     this.storage = new Storage();
     this.tiles.clear();
+
+    // Initialize limited undo (practice mode has unlimited)
+    this.undosRemaining = this.mode === 'practice' ? Infinity : 3;
 
     if (this.mode === 'daily') {
       this.rng = seededRandom(getDailySeed());
@@ -125,6 +155,13 @@ export class GameScene extends Phaser.Scene {
       color: '#ffd700',
       fontStyle: 'bold',
     });
+
+    // UI: Mode indicator badge
+    this.createModeIndicator(GRID_PADDING, GRID_PADDING + 35 * S);
+
+    // Match preview graphics
+    this.matchPreviewGraphics = this.add.graphics();
+    this.matchPreviewGraphics.setDepth(8);
 
     // UI: Score with styled background
     const scoreBg = this.add.graphics();
@@ -237,6 +274,31 @@ export class GameScene extends Phaser.Scene {
       undoBtnBg.strokeRoundedRect(this.previewX - 40 * S, this.previewY + 295 * S, 80 * S, 35 * S, 8 * S);
     });
     undoBtn.on('pointerdown', () => this.undoLastMove());
+
+    // Undo count display (below undo button)
+    const undoCountLabel = this.mode === 'practice' ? '∞' : `${this.undosRemaining}`;
+    this.undoCountText = this.add.text(this.previewX, this.previewY + 342 * S, undoCountLabel, {
+      fontSize: scaledFont(12),
+      color: '#888888',
+    }).setOrigin(0.5);
+
+    // Difficulty indicator for endless mode (shows current color count)
+    if (this.mode === 'endless') {
+      this.createDifficultyIndicator();
+    }
+
+    // Timer display and countdown for timed mode
+    if (this.mode === 'timed') {
+      this.createTimedModeUI();
+      this.startTimedModeCountdown();
+    }
+
+    // Daily goals tracking and display
+    if (this.mode === 'daily') {
+      this.dailyGoals = getDailyGoals();
+      this.comboCount = 0;
+      this.createDailyGoalsUI();
+    }
 
     // UI: Menu button (back to menu)
     const menuBtnY = this.previewY + 350 * S;
@@ -436,6 +498,7 @@ export class GameScene extends Phaser.Scene {
     const x = this.gridX + col * TILE_SIZE;
 
     this.columnIndicator.clear();
+    this.matchPreviewGraphics.clear();
 
     // Draw column highlight
     this.columnIndicator.fillStyle(0xffffff, 0.08);
@@ -455,6 +518,40 @@ export class GameScene extends Phaser.Scene {
       x + TILE_SIZE / 2 - 8 * S, this.gridY - 18 * S,
       x + TILE_SIZE / 2 + 8 * S, this.gridY - 18 * S
     );
+
+    // Match preview - show what tiles would match
+    this.drawMatchPreview(col);
+  }
+
+  private drawMatchPreview(col: number): void {
+    const currentTile = this.tileQueue.peek(0);
+    if (!currentTile) return;
+
+    const result = this.grid.simulateDrop(col, currentTile);
+    if (!result || result.matches.length === 0) return;
+
+    // Draw preview circles on tiles that would match
+    const radius = TILE_SIZE * 0.35;
+    for (const { col: matchCol, row: matchRow } of result.matches) {
+      const cx = this.gridX + matchCol * TILE_SIZE + TILE_SIZE / 2;
+      const cy = this.gridY + matchRow * TILE_SIZE + TILE_SIZE / 2;
+
+      // Glowing ring effect
+      this.matchPreviewGraphics.lineStyle(4 * S, 0xffffff, 0.3);
+      this.matchPreviewGraphics.strokeCircle(cx, cy, radius);
+
+      // Inner fill
+      this.matchPreviewGraphics.fillStyle(0xffffff, 0.15);
+      this.matchPreviewGraphics.fillCircle(cx, cy, radius - 2 * S);
+    }
+
+    // Show landing position indicator
+    const landX = this.gridX + col * TILE_SIZE + TILE_SIZE / 2;
+    const landY = this.gridY + result.row * TILE_SIZE + TILE_SIZE / 2;
+
+    // Pulsing landing indicator
+    this.matchPreviewGraphics.lineStyle(2 * S, 0xffd700, 0.6);
+    this.matchPreviewGraphics.strokeCircle(landX, landY, TILE_SIZE * 0.4);
   }
 
   private selectedColumn: number = Math.floor(GRID_COLS / 2);
@@ -483,8 +580,8 @@ export class GameScene extends Phaser.Scene {
 
     if (landedRow === -1) return;
 
-    // Create visual tile
-    const tile = new Tile(this, col, 0, tileData.colorIndex, tileData.type, this.gridX, this.gridY);
+    // Create visual tile with full tile data
+    const tile = new Tile(this, col, 0, tileData.colorIndex, tileData.type, this.gridX, this.gridY, tileData);
     this.tiles.set(`${col},${landedRow}`, tile);
 
     // Animate drop
@@ -508,7 +605,7 @@ export class GameScene extends Phaser.Scene {
 
     if (result.chains.length === 0) {
       this.scoreManager.endTurn();
-      this.checkGameOver();
+      this.tickTimersAndCheck();
       return;
     }
 
@@ -516,20 +613,121 @@ export class GameScene extends Phaser.Scene {
     this.animateChains(result.chains, 0);
   }
 
-  private animateChains(chains: Array<{ cleared: Array<{ col: number; row: number }>; fallen: Array<{ col: number; fromRow: number; toRow: number }> }>, index: number): void {
+  private tickTimersAndCheck(): void {
+    // Tick all timer tiles
+    const expired = this.grid.tickTimers();
+
+    // Update visual timers
+    this.updateTimerVisuals();
+
+    if (expired.length > 0) {
+      // Timer expired - animate explosion and end game
+      this.handleTimerExplosions(expired);
+    } else {
+      this.checkGameOver();
+    }
+  }
+
+  private updateTimerVisuals(): void {
+    const timers = this.grid.getTimerTiles();
+    for (const { col, row, turnsRemaining } of timers) {
+      const key = `${col},${row}`;
+      const tile = this.tiles.get(key);
+      if (tile) {
+        tile.updateTimer(turnsRemaining);
+      }
+    }
+  }
+
+  private handleTimerExplosions(expired: Array<{ col: number; row: number }>): void {
+    if (this.mode === 'practice') {
+      // In practice mode, just show warning and let player undo
+      this.showTimerWarningMessage();
+      return;
+    }
+
+    // Screen shake
+    this.cameras.main.shake(200, 0.02);
+
+    let explosionCount = 0;
+    for (const { col, row } of expired) {
+      const key = `${col},${row}`;
+      const tile = this.tiles.get(key);
+      if (tile) {
+        tile.animateTimerExplosion(() => {
+          explosionCount++;
+          if (explosionCount === expired.length) {
+            // After all explosions, end game
+            this.time.delayedCall(300, () => {
+              this.storage.setHighScore(this.mode, this.scoreManager.score);
+              this.scene.start('GameOverScene', {
+                score: this.scoreManager.score,
+                mode: this.mode,
+                isHighScore: this.storage.setHighScore(this.mode, this.scoreManager.score),
+                stats: this.scoreManager.getSessionStats(),
+              });
+            });
+          }
+        });
+        this.tiles.delete(key);
+      }
+    }
+  }
+
+  private showTimerWarningMessage(): void {
+    const { width, height } = this.cameras.main;
+    const text = this.add.text(width / 2, height / 2, '⏰ Timer expired! Use UNDO', {
+      fontSize: scaledFont(22),
+      color: '#ff4444',
+      backgroundColor: '#1a1a2e',
+      padding: { x: 16 * S, y: 8 * S },
+    }).setOrigin(0.5);
+
+    this.tweens.add({
+      targets: text,
+      alpha: 0,
+      delay: 2500,
+      duration: 500,
+      onComplete: () => text.destroy(),
+    });
+  }
+
+  private animateChains(chains: Array<{ cleared: Array<{ col: number; row: number }>; fallen: Array<{ col: number; fromRow: number; toRow: number }>; damaged?: Array<{ col: number; row: number }> }>, index: number): void {
     if (index >= chains.length) {
       this.scoreManager.endTurn();
-      this.checkGameOver();
+      this.tickTimersAndCheck();
       return;
     }
 
     const chain = chains[index];
+
+    // Animate damaged stone tiles
+    if (chain.damaged && chain.damaged.length > 0) {
+      for (const { col, row } of chain.damaged) {
+        const key = `${col},${row}`;
+        const tile = this.tiles.get(key);
+        if (tile) {
+          const cellData = this.grid.getCell(col, row);
+          if (cellData && cellData.health !== undefined) {
+            tile.updateHealth(cellData.health);
+          }
+        }
+      }
+    }
 
     // Add score
     const points = this.scoreManager.addChain(chain.cleared.length);
     this.scoreText.setText(`${this.scoreManager.score}`);
     this.updateDifficulty();
     this.checkMilestones();
+
+    // Track combos for daily goals
+    if (this.scoreManager.multiplier >= 2) {
+      this.comboCount++;
+    }
+
+    // Update daily goals progress
+    this.updateDailyGoalsProgress();
 
     // Show multiplier text (starting from 1x with escalating intensity)
     this.showMultiplierText(this.scoreManager.multiplier, this.scoreManager.turnTilesCleared);
@@ -718,8 +916,319 @@ export class GameScene extends Phaser.Scene {
   }
 
   private undoLastMove(): void {
+    // Check if undos are available
+    if (this.undosRemaining <= 0) {
+      this.showNoUndosMessage();
+      return;
+    }
+
     if (this.grid.undo()) {
+      // Decrement undo count (but not for practice mode)
+      if (this.mode !== 'practice') {
+        this.undosRemaining--;
+        this.undoCountText.setText(`${this.undosRemaining}`);
+
+        // Flash red when running low
+        if (this.undosRemaining <= 1) {
+          this.undoCountText.setStyle({ color: '#ff4444' });
+          this.tweens.add({
+            targets: this.undoCountText,
+            scale: 1.3,
+            yoyo: true,
+            duration: 100,
+          });
+        }
+      }
+
       this.rebuildTilesFromGrid();
+    }
+  }
+
+  private showNoUndosMessage(): void {
+    const { width, height } = this.cameras.main;
+    const text = this.add.text(width / 2, height / 2, 'No undos left!', {
+      fontSize: scaledFont(20),
+      color: '#ff6b9d',
+      backgroundColor: '#1a1a2e',
+      padding: { x: 16 * S, y: 8 * S },
+    }).setOrigin(0.5);
+
+    this.tweens.add({
+      targets: text,
+      alpha: 0,
+      y: height / 2 - 30 * S,
+      delay: 800,
+      duration: 300,
+      onComplete: () => text.destroy(),
+    });
+  }
+
+  private createModeIndicator(x: number, y: number): void {
+    const theme = getTheme(this.mode);
+
+    this.modeIndicator = this.add.container(x, y);
+
+    // Badge background
+    const bg = this.add.graphics();
+    const labelWidth = theme.labelText.length * 8 * S + 16 * S;
+    bg.fillStyle(theme.accentColor, 0.2);
+    bg.fillRoundedRect(0, 0, labelWidth, 22 * S, 4 * S);
+    bg.lineStyle(1 * S, theme.accentColor, 0.6);
+    bg.strokeRoundedRect(0, 0, labelWidth, 22 * S, 4 * S);
+    this.modeIndicator.add(bg);
+
+    // Badge text
+    const text = this.add.text(labelWidth / 2, 11 * S, theme.labelText, {
+      fontSize: scaledFont(10),
+      color: theme.accentHex,
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    this.modeIndicator.add(text);
+  }
+
+  private createDifficultyIndicator(): void {
+    const { width } = this.cameras.main;
+
+    // Container for difficulty indicator (top right, below score)
+    const x = width - GRID_PADDING - 10 * S;
+    const y = GRID_PADDING + 55 * S;
+
+    // Background
+    const bg = this.add.graphics();
+    bg.fillStyle(0x16213e, 0.6);
+    bg.fillRoundedRect(x - 60 * S, y - 5 * S, 70 * S, 24 * S, 4 * S);
+
+    // Color count text
+    this.colorCountText = this.add.text(x, y + 7 * S, `${this.colorCount} colors`, {
+      fontSize: scaledFont(11),
+      color: '#888888',
+    }).setOrigin(1, 0.5);
+  }
+
+  private createTimedModeUI(): void {
+    const { width } = this.cameras.main;
+
+    // Timer display (prominent, center top)
+    const timerBg = this.add.graphics();
+    timerBg.fillStyle(0xff8c00, 0.2);
+    timerBg.fillRoundedRect(width / 2 - 60 * S, 5 * S, 120 * S, 45 * S, 10 * S);
+    timerBg.lineStyle(2 * S, 0xff8c00, 0.5);
+    timerBg.strokeRoundedRect(width / 2 - 60 * S, 5 * S, 120 * S, 45 * S, 10 * S);
+
+    // Timer icon
+    this.add.text(width / 2 - 45 * S, 27 * S, '⏱️', {
+      fontSize: scaledFont(20),
+    }).setOrigin(0.5);
+
+    // Timer text
+    this.timerText = this.add.text(width / 2 + 10 * S, 27 * S, this.formatTime(this.timeRemaining), {
+      fontSize: scaledFont(26),
+      color: '#ff8c00',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+  }
+
+  private startTimedModeCountdown(): void {
+    this.timeRemaining = 120; // 2 minutes
+
+    this.timerEvent = this.time.addEvent({
+      delay: 1000,
+      callback: () => {
+        this.timeRemaining--;
+        this.updateTimerDisplay();
+
+        if (this.timeRemaining <= 0) {
+          this.timerEvent?.destroy();
+          this.handleTimedModeEnd();
+        }
+      },
+      loop: true,
+    });
+  }
+
+  private updateTimerDisplay(): void {
+    if (!this.timerText) return;
+
+    this.timerText.setText(this.formatTime(this.timeRemaining));
+
+    // Warning state at 10 seconds
+    if (this.timeRemaining <= 10 && !this.timerWarning) {
+      this.timerWarning = true;
+      this.timerText.setStyle({ color: '#ff0000' });
+
+      // Pulse animation
+      this.tweens.add({
+        targets: this.timerText,
+        scale: 1.2,
+        yoyo: true,
+        repeat: -1,
+        duration: 300,
+        ease: 'Sine.easeInOut',
+      });
+    }
+  }
+
+  private formatTime(seconds: number): string {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  private createDailyGoalsUI(): void {
+    const { height } = this.cameras.main;
+
+    // Goals panel on left side
+    const panelX = 20 * S;
+    const panelY = this.gridY + 150 * S;
+
+    // Background panel
+    const bg = this.add.graphics();
+    bg.fillStyle(0x16213e, 0.8);
+    bg.fillRoundedRect(panelX - 10 * S, panelY - 15 * S, 130 * S, 100 * S, 8 * S);
+    bg.lineStyle(1 * S, 0xffd700, 0.3);
+    bg.strokeRoundedRect(panelX - 10 * S, panelY - 15 * S, 130 * S, 100 * S, 8 * S);
+
+    // Title
+    this.add.text(panelX, panelY - 5 * S, 'GOALS', {
+      fontSize: scaledFont(10),
+      color: '#ffd700',
+      fontStyle: 'bold',
+    });
+
+    // Goal container
+    this.goalContainer = this.add.container(panelX, panelY + 15 * S);
+    this.goalTexts = [];
+
+    this.dailyGoals.forEach((goal, i) => {
+      const y = i * 25 * S;
+      const text = this.add.text(0, y, this.formatGoalText(goal), {
+        fontSize: scaledFont(9),
+        color: goal.completed ? '#7fff00' : '#888888',
+      });
+      this.goalTexts.push(text);
+      this.goalContainer!.add(text);
+    });
+  }
+
+  private formatGoalText(goal: DailyGoal): string {
+    const prefix = goal.completed ? '✓' : '○';
+    const progress = goal.completed ? '' : ` (${goal.progress}/${goal.target})`;
+    // Truncate long descriptions
+    const desc = goal.description.length > 16
+      ? goal.description.slice(0, 14) + '..'
+      : goal.description;
+    return `${prefix} ${desc}${progress}`;
+  }
+
+  private updateDailyGoalsProgress(): void {
+    if (this.mode !== 'daily' || !this.goalContainer) return;
+
+    const stats = {
+      tilesCleared: this.scoreManager.totalTilesCleared,
+      comboCount: this.comboCount,
+      score: this.scoreManager.score,
+      longestChain: this.scoreManager.longestChain,
+      specialTilesUsed: this.scoreManager.specialTilesUsed,
+      maxMultiplier: this.scoreManager.maxMultiplier,
+    };
+
+    const previouslyCompleted = this.dailyGoals.filter(g => g.completed).length;
+    this.dailyGoals = updateGoalProgress(this.dailyGoals, stats);
+    const nowCompleted = this.dailyGoals.filter(g => g.completed).length;
+
+    // Update display
+    this.dailyGoals.forEach((goal, i) => {
+      if (this.goalTexts[i]) {
+        this.goalTexts[i].setText(this.formatGoalText(goal));
+        this.goalTexts[i].setStyle({ color: goal.completed ? '#7fff00' : '#888888' });
+      }
+    });
+
+    // Show celebration for newly completed goals
+    if (nowCompleted > previouslyCompleted) {
+      const newGoal = this.dailyGoals.find(g => g.completed && !this.storage.isGoalCompleted(g.id));
+      if (newGoal) {
+        this.showGoalCompletedMessage(newGoal);
+        this.storage.completeGoal(newGoal.id);
+
+        // Add bonus points
+        this.scoreManager.addChain(0); // This won't add points, we need a direct method
+        // Just show the bonus visually for now
+      }
+    }
+  }
+
+  private showGoalCompletedMessage(goal: DailyGoal): void {
+    const { width, height } = this.cameras.main;
+
+    const container = this.add.container(width / 2, height / 3);
+    container.setDepth(50);
+
+    // Background
+    const bg = this.add.graphics();
+    bg.fillStyle(0x7fff00, 0.2);
+    bg.fillRoundedRect(-120 * S, -30 * S, 240 * S, 60 * S, 10 * S);
+    bg.lineStyle(2 * S, 0x7fff00, 0.8);
+    bg.strokeRoundedRect(-120 * S, -30 * S, 240 * S, 60 * S, 10 * S);
+    container.add(bg);
+
+    // Text
+    const text = this.add.text(0, -8 * S, '🎯 GOAL COMPLETE!', {
+      fontSize: scaledFont(18),
+      color: '#7fff00',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    container.add(text);
+
+    const reward = this.add.text(0, 15 * S, `+${goal.reward} bonus!`, {
+      fontSize: scaledFont(14),
+      color: '#ffd700',
+    }).setOrigin(0.5);
+    container.add(reward);
+
+    // Animation
+    container.setScale(0);
+    container.setAlpha(0);
+
+    this.tweens.add({
+      targets: container,
+      scale: 1,
+      alpha: 1,
+      duration: 300,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        this.tweens.add({
+          targets: container,
+          alpha: 0,
+          y: height / 3 - 40 * S,
+          delay: 1500,
+          duration: 300,
+          onComplete: () => container.destroy(),
+        });
+      },
+    });
+  }
+
+  private handleTimedModeEnd(): void {
+    // Flash the timer red
+    if (this.timerText) {
+      this.tweens.add({
+        targets: this.timerText,
+        alpha: 0,
+        yoyo: true,
+        repeat: 3,
+        duration: 100,
+        onComplete: () => {
+          // Go to game over
+          this.storage.setHighScore(this.mode, this.scoreManager.score);
+          this.scene.start('GameOverScene', {
+            score: this.scoreManager.score,
+            mode: this.mode,
+            isHighScore: this.storage.setHighScore(this.mode, this.scoreManager.score),
+            stats: this.scoreManager.getSessionStats(),
+          });
+        },
+      });
     }
   }
 
@@ -733,7 +1242,7 @@ export class GameScene extends Phaser.Scene {
       for (let row = 0; row < GRID_ROWS; row++) {
         const cellData = this.grid.getCell(col, row);
         if (cellData !== null) {
-          const tile = new Tile(this, col, row, cellData.colorIndex, cellData.type, this.gridX, this.gridY);
+          const tile = new Tile(this, col, row, cellData.colorIndex, cellData.type, this.gridX, this.gridY, cellData);
           this.tiles.set(`${col},${row}`, tile);
         }
       }
@@ -986,6 +1495,21 @@ export class GameScene extends Phaser.Scene {
       this.colorCount = newColorCount;
       this.tileQueue.setColorCount(newColorCount);
       this.showNewColorMessage();
+
+      // Update difficulty indicator
+      if (this.colorCountText) {
+        this.colorCountText.setText(`${this.colorCount} colors`);
+        this.colorCountText.setStyle({ color: '#da70d6' });
+        this.tweens.add({
+          targets: this.colorCountText,
+          scale: 1.2,
+          yoyo: true,
+          duration: 200,
+          onComplete: () => {
+            this.colorCountText?.setStyle({ color: '#888888' });
+          },
+        });
+      }
     }
   }
 

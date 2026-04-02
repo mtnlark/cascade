@@ -1,5 +1,5 @@
-import { TileData, createNormalTile, createRainbowTile, createBombTile, createColorBombTile } from './TileData';
-import { SPECIAL_TILE_RATES } from '../config';
+import { TileData, createNormalTile, createRainbowTile, createBombTile, createColorBombTile, createStoneTile, createTimerTile } from './TileData';
+import { SPECIAL_TILE_RATES, TIMER_TILE_DURATION } from '../config';
 
 export class TileQueue {
   private queue: TileData[] = [];
@@ -56,15 +56,34 @@ export class TileQueue {
     const roll = this.random();
     const colorIndex = Math.floor(this.random() * this.colorCount);
 
-    if (roll < SPECIAL_TILE_RATES.rainbow) {
+    let threshold = 0;
+
+    threshold += SPECIAL_TILE_RATES.rainbow;
+    if (roll < threshold) {
       return createRainbowTile();
-    } else if (roll < SPECIAL_TILE_RATES.rainbow + SPECIAL_TILE_RATES.bomb) {
-      return createBombTile(colorIndex);
-    } else if (roll < SPECIAL_TILE_RATES.rainbow + SPECIAL_TILE_RATES.bomb + SPECIAL_TILE_RATES.colorBomb) {
-      return createColorBombTile(colorIndex);
-    } else {
-      return createNormalTile(colorIndex);
     }
+
+    threshold += SPECIAL_TILE_RATES.bomb;
+    if (roll < threshold) {
+      return createBombTile(colorIndex);
+    }
+
+    threshold += SPECIAL_TILE_RATES.colorBomb;
+    if (roll < threshold) {
+      return createColorBombTile(colorIndex);
+    }
+
+    threshold += SPECIAL_TILE_RATES.stone;
+    if (roll < threshold) {
+      return createStoneTile(colorIndex);
+    }
+
+    threshold += SPECIAL_TILE_RATES.timer;
+    if (roll < threshold) {
+      return createTimerTile(colorIndex, TIMER_TILE_DURATION);
+    }
+
+    return createNormalTile(colorIndex);
   }
 
   private random(): number {

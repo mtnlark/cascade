@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { UI_TEXT_COLOR, COLORS, RENDER_SCALE, scaledFont } from '../config';
 import { Storage, GameMode } from '../utils/storage';
+import { getDailyGoals, DailyGoal } from '../utils/dailyGoals';
 
 const S = RENDER_SCALE; // Shorthand for scaling
 
@@ -37,15 +38,16 @@ export class MenuScene extends Phaser.Scene {
       color: '#888888',
     }).setOrigin(0.5);
 
-    // Mode buttons
-    const modes: { label: string; mode: GameMode; y: number }[] = [
-      { label: 'ENDLESS', mode: 'endless', y: 200 * S },
-      { label: 'DAILY PUZZLE', mode: 'daily', y: 280 * S },
-      { label: 'PRACTICE', mode: 'practice', y: 360 * S },
+    // Mode buttons with descriptions
+    const modes: { label: string; mode: GameMode; y: number; desc: string }[] = [
+      { label: 'ENDLESS', mode: 'endless', y: 180 * S, desc: 'Climb the leaderboard. Difficulty increases!' },
+      { label: 'DAILY PUZZLE', mode: 'daily', y: 255 * S, desc: 'Same puzzle for everyone today' },
+      { label: 'TIMED', mode: 'timed', y: 370 * S, desc: '2 minutes to score big' },
+      { label: 'PRACTICE', mode: 'practice', y: 445 * S, desc: 'Unlimited undos. No game over.' },
     ];
 
-    modes.forEach(({ label, mode, y }) => {
-      const btnWidth = 220 * S;
+    modes.forEach(({ label, mode, y, desc }) => {
+      const btnWidth = 260 * S;
       const btnHeight = 54 * S;
       const radius = 12 * S;
 
@@ -57,21 +59,32 @@ export class MenuScene extends Phaser.Scene {
       bg.strokeRoundedRect(width / 2 - btnWidth / 2, y - btnHeight / 2, btnWidth, btnHeight, radius);
 
       // Button text
-      const btn = this.add.text(width / 2, y, label, {
-        fontSize: scaledFont(24),
+      const btn = this.add.text(width / 2, y - 6 * S, label, {
+        fontSize: scaledFont(22),
         color: UI_TEXT_COLOR,
         fontStyle: 'bold',
       })
         .setOrigin(0.5)
         .setInteractive({ useHandCursor: true });
 
-      // High score below button
+      // Mode description below label
+      this.add.text(width / 2, y + 14 * S, desc, {
+        fontSize: scaledFont(10),
+        color: '#666666',
+      }).setOrigin(0.5);
+
+      // High score below button (smaller, to the side)
       const highScore = this.storage.getHighScore(mode);
-      if (highScore > 0) {
-        this.add.text(width / 2, y + 42 * S, `★ Best: ${highScore}`, {
-          fontSize: scaledFont(14),
+      if (highScore > 0 && mode !== 'daily') {
+        this.add.text(width / 2 + btnWidth / 2 + 15 * S, y, `★${highScore}`, {
+          fontSize: scaledFont(12),
           color: '#ffd700',
-        }).setOrigin(0.5);
+        }).setOrigin(0, 0.5);
+      }
+
+      // Daily goals preview for daily mode (shown below the button)
+      if (mode === 'daily') {
+        this.createDailyGoalsPreview(width / 2, y + 38 * S);
       }
 
       btn.on('pointerover', () => btn.setStyle({ color: '#ffd700' }));
@@ -82,7 +95,7 @@ export class MenuScene extends Phaser.Scene {
     });
 
     // Challenge mode button (special styling)
-    const challengeY = 440 * S;
+    const challengeY = 535 * S;
     const challengeBtnWidth = 220 * S;
     const challengeBtnHeight = 54 * S;
     const challengeRadius = 12 * S;
@@ -116,6 +129,9 @@ export class MenuScene extends Phaser.Scene {
       this.scene.start('ChallengeSelectScene');
     });
 
+    // Achievements button (smaller, below challenges)
+    this.createAchievementsButton(width / 2, 610 * S);
+
     // Daily streak badge
     this.createStreakBadge(width - 60 * S, 70 * S);
 
@@ -128,6 +144,74 @@ export class MenuScene extends Phaser.Scene {
       fontSize: scaledFont(16),
       color: '#aaaaaa',
     }).setOrigin(0.5);
+  }
+
+  private createDailyGoalsPreview(x: number, y: number): void {
+    const goals = getDailyGoals();
+    const goalsData = this.storage.getDailyGoalsData();
+
+    // Show up to 3 goals in a compact format
+    goals.forEach((goal, i) => {
+      const isCompleted = goalsData.completed.includes(goal.id);
+      const goalY = y + i * 14 * S;
+
+      // Checkmark or bullet
+      const prefix = isCompleted ? '✓' : '○';
+      const color = isCompleted ? '#7fff00' : '#666666';
+
+      // Truncate long descriptions
+      const desc = goal.description.length > 20
+        ? goal.description.slice(0, 18) + '...'
+        : goal.description;
+
+      this.add.text(x, goalY, `${prefix} ${desc}`, {
+        fontSize: scaledFont(10),
+        color,
+      }).setOrigin(0.5);
+    });
+  }
+
+  private createAchievementsButton(x: number, y: number): void {
+    const btnWidth = 180 * S;
+    const btnHeight = 40 * S;
+    const radius = 10 * S;
+
+    // Button background
+    const bg = this.add.graphics();
+    bg.fillStyle(0x16213e, 0.8);
+    bg.fillRoundedRect(x - btnWidth / 2, y - btnHeight / 2, btnWidth, btnHeight, radius);
+    bg.lineStyle(1 * S, 0x444444, 0.6);
+    bg.strokeRoundedRect(x - btnWidth / 2, y - btnHeight / 2, btnWidth, btnHeight, radius);
+
+    // Get unlock count for badge
+    const unlockedCount = this.storage.getUnlockedAchievementCount();
+
+    // Button text
+    const btn = this.add.text(x, y, `🏆 ACHIEVEMENTS`, {
+      fontSize: scaledFont(14),
+      color: '#888888',
+    })
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+
+    // Badge showing unlock count
+    if (unlockedCount > 0) {
+      const badgeBg = this.add.graphics();
+      badgeBg.fillStyle(0xffd700, 0.9);
+      badgeBg.fillCircle(x + 80 * S, y - 8 * S, 12 * S);
+
+      this.add.text(x + 80 * S, y - 8 * S, `${unlockedCount}`, {
+        fontSize: scaledFont(10),
+        color: '#000000',
+        fontStyle: 'bold',
+      }).setOrigin(0.5);
+    }
+
+    btn.on('pointerover', () => btn.setStyle({ color: '#ffd700' }));
+    btn.on('pointerout', () => btn.setStyle({ color: '#888888' }));
+    btn.on('pointerdown', () => {
+      this.scene.start('AchievementsScene');
+    });
   }
 
   private createStreakBadge(x: number, y: number): void {
