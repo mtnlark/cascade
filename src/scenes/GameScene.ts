@@ -735,12 +735,17 @@ export class GameScene extends Phaser.Scene {
     // Apply screen shake based on clear type and size
     this.applyScreenShake(chain.cleared);
 
-    // Animate cleared tiles
+    // Animate cleared tiles and track special tiles
     let clearedCount = 0;
     chain.cleared.forEach(({ col, row }) => {
       const key = `${col},${row}`;
       const tile = this.tiles.get(key);
       if (tile) {
+        // Track special tile usage for daily goals and achievements
+        const specialTypes = ['bomb', 'colorBomb', 'rainbow', 'timer', 'stone'];
+        if (specialTypes.includes(tile.tileType)) {
+          this.scoreManager.recordSpecialTile();
+        }
         tile.animateClear(() => {
           clearedCount++;
           if (clearedCount === chain.cleared.length) {
