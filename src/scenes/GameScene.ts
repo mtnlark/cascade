@@ -349,6 +349,31 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    // Border dimmed if already used hold this turn
+    const borderAlpha = this.canHoldThisTurn ? 0.5 : 0.2;
+    this.createTilePreviewGraphics(this.holdContainer, tileData, borderAlpha);
+  }
+
+  private holdTile(): void {
+    if (!this.canHoldThisTurn) return;
+
+    this.tileQueue.hold();
+    this.canHoldThisTurn = false;
+
+    // Update both displays
+    this.renderHoldSlot();
+    this.renderPreviewQueue();
+  }
+
+  /**
+   * Creates a tile preview graphic with shadow, fill, highlight, border, and icon.
+   * Used by both renderHoldSlot() and renderPreviewQueue().
+   */
+  private createTilePreviewGraphics(
+    container: Phaser.GameObjects.Container,
+    tileData: TileData,
+    borderAlpha: number = 0.5
+  ): void {
     const previewSize = TILE_SIZE * 0.75;
     const radius = 8 * S;
     const color = tileData.type === 'rainbow' ? 0xffffff : COLORS[tileData.colorIndex];
@@ -367,35 +392,23 @@ export class GameScene extends Phaser.Scene {
     gfx.fillStyle(0xffffff, 0.2);
     gfx.fillRoundedRect(-previewSize / 2, -previewSize / 2, previewSize, previewSize / 2.5, { tl: radius, tr: radius, bl: 0, br: 0 });
 
-    // Border - gold if can hold, dimmed if already used
-    const borderAlpha = this.canHoldThisTurn ? 0.5 : 0.2;
+    // Border
     gfx.lineStyle(2 * S, 0xffffff, borderAlpha);
     gfx.strokeRoundedRect(-previewSize / 2, -previewSize / 2, previewSize, previewSize, radius);
 
-    this.holdContainer.add(gfx);
+    container.add(gfx);
 
     // Add icon for special tiles
     if (tileData.type === 'bomb') {
       const icon = this.add.text(0, 2 * S, '💣', { fontSize: scaledFont(20) }).setOrigin(0.5);
-      this.holdContainer.add(icon);
+      container.add(icon);
     } else if (tileData.type === 'colorBomb') {
       const icon = this.add.text(0, 2 * S, '⭐', { fontSize: scaledFont(20) }).setOrigin(0.5);
-      this.holdContainer.add(icon);
+      container.add(icon);
     } else if (tileData.type === 'rainbow') {
       const icon = this.add.text(0, 2 * S, '🌈', { fontSize: scaledFont(18) }).setOrigin(0.5);
-      this.holdContainer.add(icon);
+      container.add(icon);
     }
-  }
-
-  private holdTile(): void {
-    if (!this.canHoldThisTurn) return;
-
-    this.tileQueue.hold();
-    this.canHoldThisTurn = false;
-
-    // Update both displays
-    this.renderHoldSlot();
-    this.renderPreviewQueue();
   }
 
   private renderPreviewQueue(): void {
@@ -414,46 +427,15 @@ export class GameScene extends Phaser.Scene {
       const y = this.previewY + i * spacing;
       const container = this.add.container(this.previewX, y);
 
-      // Scale down subsequent tiles for depth effect (smaller as they go further back)
+      // Scale down subsequent tiles for depth effect
       const scale = i === 0 ? 1 : Math.max(0.7, 0.95 - (i * 0.05));
       container.setScale(scale);
 
-      const color = tileData.type === 'rainbow' ? 0xffffff : COLORS[tileData.colorIndex];
+      // First tile gets full opacity border, others get dimmed
+      const borderAlpha = i === 0 ? 0.5 : 0.3;
+      this.createTilePreviewGraphics(container, tileData, borderAlpha);
 
-      // Create rounded rectangle with graphics
-      const gfx = this.add.graphics();
-
-      // Background shadow
-      gfx.fillStyle(0x000000, 0.3);
-      gfx.fillRoundedRect(-previewSize / 2 + 3 * S, -previewSize / 2 + 3 * S, previewSize, previewSize, radius);
-
-      // Main tile
-      gfx.fillStyle(color, 1);
-      gfx.fillRoundedRect(-previewSize / 2, -previewSize / 2, previewSize, previewSize, radius);
-
-      // Highlight
-      gfx.fillStyle(0xffffff, 0.2);
-      gfx.fillRoundedRect(-previewSize / 2, -previewSize / 2, previewSize, previewSize / 2.5, { tl: radius, tr: radius, bl: 0, br: 0 });
-
-      // Border
-      gfx.lineStyle(2 * S, 0xffffff, i === 0 ? 0.5 : 0.3);
-      gfx.strokeRoundedRect(-previewSize / 2, -previewSize / 2, previewSize, previewSize, radius);
-
-      container.add(gfx);
-
-      // Add icon for special tiles
-      if (tileData.type === 'bomb') {
-        const icon = this.add.text(0, 2 * S, '💣', { fontSize: scaledFont(20) }).setOrigin(0.5);
-        container.add(icon);
-      } else if (tileData.type === 'colorBomb') {
-        const icon = this.add.text(0, 2 * S, '⭐', { fontSize: scaledFont(20) }).setOrigin(0.5);
-        container.add(icon);
-      } else if (tileData.type === 'rainbow') {
-        const icon = this.add.text(0, 2 * S, '🌈', { fontSize: scaledFont(18) }).setOrigin(0.5);
-        container.add(icon);
-      }
-
-      // Highlight the first tile as "next"
+      // Highlight the first tile as "next" with golden glow
       if (i === 0) {
         const glow = this.add.graphics();
         glow.lineStyle(3 * S, 0xffd700, 0.5);
